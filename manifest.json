@@ -1,0 +1,15 @@
+{
+  "name": "RECDAVI",
+  "short_name": "RECDAVI",
+  "description": "Recogida de datos de producción PSFV Villena-Alicante",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#12151e",
+  "theme_color": "#B45309",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "es"
+}

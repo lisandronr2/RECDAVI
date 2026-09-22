@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#B45309">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RECDAVI">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>RECDAVI</title>
+<style>
+:root{
+  --blue:#B45309; --blue-dk:#8a3f07; --blue-lt:#FFF7ED;
+  --surface:#f4f4f0; --card:#fff; --card2:#fafaf7;
+  --border:#e0ddd6; --border-s:#ccc;
+  --text:#1a1a18; --t2:#555; --t3:#888; --t4:#bbb;
+  --green:#1b7a4a; --green-bg:#ecfdf5; --green-bd:#a7f3d0;
+  --amber:#b45309; --amber-bg:#fffbeb; --amber-bd:#fde68a;
+  --red:#b91c1c; --red-bg:#fef2f2; --red-bd:#fecaca;
+  --r:10px; --shadow:0 2px 10px rgba(0,0,0,.12);
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --surface:#12151e; --card:#1c2033; --card2:#222640;
+    --border:#2a2f47; --border-s:#3a4060;
+    --text:#e8e9f0; --t2:#9fa3be; --t3:#666a88; --t4:#383d5a;
+    --blue-lt:#2a1e0f;
+    --green-bg:#0d2e1f; --amber-bg:#2a1e00; --red-bg:#2a0d0d;
+    --shadow:0 2px 10px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --surface:#12151e; --card:#1c2033; --card2:#222640;
+  --border:#2a2f47; --border-s:#3a4060;
+  --text:#e8e9f0; --t2:#9fa3be; --t3:#666a88; --t4:#383d5a;
+  --blue-lt:#2a1e0f;
+  --green-bg:#0d2e1f; --amber-bg:#2a1e00; --red-bg:#2a0d0d;
+  --shadow:0 2px 10px rgba(0,0,0,.4);
+}
+:root[data-theme="light"]{
+  --surface:#f4f4f0; --card:#fff; --card2:#fafaf7;
+  --border:#e0ddd6; --border-s:#ccc;
+  --text:#1a1a18; --t2:#555; --t3:#888; --t4:#bbb;
+  --blue-lt:#FFF7ED;
+  --green-bg:#ecfdf5; --amber-bg:#fffbeb; --red-bg:#fef2f2;
+  --shadow:0 2px 10px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--surface);color:var(--text);font-size:14px;display:flex;flex-direction:column;overflow-x:hidden}
+
+.hdr{background:var(--blue);color:#fff;padding:calc(10px + var(--safe-top)) 14px 10px;display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.3);position:sticky;top:0;z-index:50}
+.hdr-back{width:32px;height:32px;border:none;background:rgba(255,255,255,.15);border-radius:var(--r);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.hdr-back:disabled{opacity:0;pointer-events:none}
+.hdr-title{flex:1;min-width:0}
+.hdr-title .t1{font-size:15px;font-weight:700}
+.hdr-title .t2{font-size:10px;opacity:.75}
+.hdr-acts{display:flex;align-items:center;gap:6px}
+.hdr-btn{width:32px;height:32px;border:none;background:rgba(255,255,255,.15);border-radius:var(--r);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
+.hdr-btn:hover{background:rgba(255,255,255,.27)}
+.hdr-badge{position:absolute;top:-4px;right:-4px;background:#facc15;color:#1a1a18;font-size:9px;font-weight:800;border-radius:99px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+.app{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding-bottom:calc(16px + var(--safe-bot))}
+.wrap{padding:14px;display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto;width:100%}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;box-shadow:var(--shadow)}
+.hint{font-size:12px;color:var(--t3);line-height:1.5;padding:2px 2px 4px}
+
+.btn{height:46px;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:var(--blue-dk)}
+.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border-s)}
+.btn-secondary:hover{background:var(--border)}
+.btn-green{background:var(--green);color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sm{height:34px;font-size:12px;padding:0 12px;width:auto}
+
+.list-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s}
+.list-item:hover{background:var(--card2)}
+.list-item .li-main{flex:1;min-width:0}
+.li-title{font-size:14px;font-weight:700;color:var(--text)}
+.li-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.li-arrow{color:var(--t4);font-size:16px}
+
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.pill-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+.pill-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd)}
+.pill-gray{background:var(--surface);color:var(--t3);border:1px solid var(--border)}
+
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select,.field textarea{
+  height:44px;padding:0 12px;border:1px solid var(--border-s);border-radius:var(--r);
+  background:var(--surface);color:var(--text);font-size:15px;width:100%
+}
+.field textarea{height:auto;min-height:80px;padding:10px 12px;resize:vertical;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px rgba(180,83,9,.18)}
+.chk-row{display:flex;align-items:center;gap:8px}
+.chk-row input{width:20px;height:20px;accent-color:var(--blue)}
+
+.state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:50px 20px;text-align:center;color:var(--t3);flex:1}
+.state .ico{font-size:44px;opacity:.4}
+.state h3{font-size:16px;color:var(--t2);font-weight:700}
+.state p{font-size:12.5px;max-width:320px;line-height:1.6}
+.spin-ring{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast{position:fixed;bottom:calc(18px + var(--safe-bot));left:50%;transform:translateX(-50%) translateY(80px);background:#1a1a18;color:#fff;padding:10px 18px;border-radius:var(--r);font-size:12.5px;font-weight:500;z-index:1000;transition:transform .3s cubic-bezier(.34,1.56,.64,1);max-width:90vw;text-align:center;box-shadow:var(--shadow)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{background:#1b7a4a}
+.toast.warn{background:#b45309}
+.toast.err{background:#b91c1c}
+
+.foot{font-size:10px;color:var(--t3);text-align:center;padding:6px 14px}
+
+/* Resumen */
+.res-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.res-table th{padding:7px 9px;text-align:left;font-size:10.5px;font-weight:700;color:var(--t2);border-bottom:2px solid var(--border-s);background:var(--card2)}
+.res-table td{padding:6px 9px;border-bottom:1px solid var(--border)}
+.res-table td.num{text-align:right}
+.res-table tfoot td{font-weight:700;background:var(--blue-lt);color:var(--blue)}
+.res-block-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px;display:flex;justify-content:space-between}
+.grand-total{background:var(--blue);color:#fff;border-radius:var(--r);padding:14px 16px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+
+@media print{
+  .hdr,.no-print{display:none!important}
+  html,body{height:auto;overflow:visible;background:#fff}
+  .app{overflow:visible}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <button class="hdr-back" id="hdr-back" onclick="goBack()" disabled>←</button>
+  <div class="hdr-title">
+    <div class="t1" id="hdr-t1">RECDAVI</div>
+    <div class="t2" id="hdr-t2">Cargando…</div>
+  </div>
+  <div class="hdr-acts">
+    <button class="hdr-btn" id="sync-btn" onclick="onSyncBtn()" title="Sincronización" style="display:none">↻<span class="hdr-badge" id="sync-badge" style="display:none">0</span></button>
+    <button class="hdr-btn" onclick="toggleTheme()" id="btn-theme" title="Tema">🌙</button>
+    <button class="hdr-btn" onclick="doLogout()" title="Salir">⏻</button>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <div class="state">
+    <div class="spin-ring"></div>
+    <h3>Iniciando…</h3>
+  </div>
+</div>
+
+<div class="foot" id="foot"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════
+const SPREADSHEET_ID = '1ZEAfFUN-22FxJH2RL-_bZzePzalgnCzEFzjahxOEOyQ';
+// TODO: pegar aquí el Client ID de Google Cloud Console (Credenciales → ID de
+// cliente de OAuth → Aplicación web) con origen autorizado
+// https://lisandronr2.github.io
+const CLIENT_ID = '';
+
+const LS_PREFIX = 'recdavi_';
+let APP_VERSION = '1.0.0.0';
+
+// ═══════════════════════════════════════════════
+// CONFIG DE HOJAS
+// Dos tipos:
+//  - 'ct-item': lista de CT (filas ya existentes en la hoja) → se completan
+//    sus campos y se marca el estado. Ideal para hojas con un CT por fila.
+//  - 'append': formulario simple que siempre añade una fila nueva.
+// ═══════════════════════════════════════════════
+const SHEETS = {
+  'MONTAJE CTS': {
+    type:'ct-item',
+    cFecha:0, cAnillo:1, cCt:2, cEstado:4,
+    doneValue:'REALIZADO',
+    icon:'🔧',
+    fields:[
+      {key:'fusiones', col:3, label:'Cantidad Fusiones', kind:'number', placeholder:'Ej. 48'},
+    ],
+  },
+  'FUSIONADO CTS': {
+    type:'ct-item',
+    cFecha:0, cAnillo:1, cCt:2, cEstado:6,
+    doneValue:'REALIZADO',
+    icon:'🔗',
+    fields:[
+      {key:'cantpp',       col:3, label:'Cant. PP',     kind:'number', placeholder:'1'},
+      {key:'preparacion',  col:4, label:'Preparación',  kind:'number', placeholder:'1'},
+      {key:'fusiones',     col:5, label:'Fusiones',     kind:'number', placeholder:'48'},
+    ],
+  },
+  'FUSIONADO GONVARRI': {
+    type:'append',
+    cFecha:0, cCt:1, cElemento:2, cEstado:3,
+    doneValue:'REALIZADO',
+    icon:'📦',
+    elementoOptions:[
+      'Fusionado','Montaje CT (armario campo)','Instalación Rack IT',
+      'Preparación','Ensayo','Instalación Armario Rack','Preparación UTP',
+    ],
+  },
+};
+
+// Mismos precios que el panel de control VILLENA PSFV
+const PRICE_LIST = {
+  fusionado:   {label:'Fusionado',                    price:10},
+  montaje:     {label:'Montaje CT (armario campo)',   price:50},
+  rackIt:      {label:'Instalación Rack IT',          price:50},
+  preparacion: {label:'Preparación',                  price:30},
+  ensayo:      {label:'Ensayo',                       price:6},
+  armarioRack: {label:'Instalación Armario Rack',     price:180},
+  prepUtp:     {label:'Preparación UTP',               price:25},
+};
+const PRICE_KEYWORDS = [
+  {kw:'instalacion armario rack', item:'armarioRack'},
+  {kw:'instalacion rack',         item:'rackIt'},
+  {kw:'preparacion utp',          item:'prepUtp'},
+  {kw:'montaje',                  item:'montaje'},
+  {kw:'preparacion',              item:'preparacion'},
+  {kw:'fusion',                   item:'fusionado'},
+  {kw:'ensayo',                   item:'ensayo'},
+];
+function normalizeTxt(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+function matchPriceKeyword(text){
+  const n = normalizeTxt(text);
+  if(!n) return null;
+  for(const {kw,item} of PRICE_KEYWORDS){ if(n.includes(kw)) return item; }
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════
+let accessToken = null, tokenClient = null;
+let sheetCache = {}; // { sheetName: {rows:[{data,sheetRow}], ts} }
+let state = { step:'loading' };
+let history_ = [];
+let toastTmr = null;
+let syncingQueue = false;
+
+// ═══════════════════════════════════════════════
+// TEMA
+// ═══════════════════════════════════════════════
+(function initTheme(){
+  const saved = localStorage.getItem(LS_PREFIX+'theme');
+  if(saved) document.documentElement.setAttribute('data-theme', saved);
+  syncThemeIcon();
+})();
+function toggleTheme(){
+  const curr = document.documentElement.getAttribute('data-theme');
+  const sys  = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  const next = (curr || sys) === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(LS_PREFIX+'theme', next);
+  syncThemeIcon();
+}
+function syncThemeIcon(){
+  const saved = localStorage.getItem(LS_PREFIX+'theme');
+  const sys   = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  document.getElementById('btn-theme').textContent = (saved||sys) === 'dark' ? '☀️' : '🌙';
+}
+
+// ═══════════════════════════════════════════════
+// AUTENTICACIÓN — Google Identity Services (OAuth2 token flow)
+// ═══════════════════════════════════════════════
+function waitForGis(){
+  return new Promise((resolve,reject)=>{
+    let tries=0;
+    const t=setInterval(()=>{
+      if(window.google?.accounts?.oauth2){ clearInterval(t); resolve(); }
+      else if(++tries>100){ clearInterval(t); reject(new Error('No se pudo cargar Google Identity Services')); }
+    },100);
+  });
+}
+
+async function initAuth(){
+  if(!CLIENT_ID){
+    showFatal('Falta configurar', 'Añade tu CLIENT_ID de Google Cloud Console en index.html (constante CLIENT_ID) para poder conectar con el Sheet.');
+    return;
+  }
+  try{ await waitForGis(); }
+  catch(e){ showFatal('Sin conexión', 'No se pudo cargar el sistema de inicio de sesión de Google. Conéctate a internet e inténtalo de nuevo.'); return; }
+
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/spreadsheets openid email',
+    callback: onTokenReceived,
+  });
+
+  const hadAuth = localStorage.getItem(LS_PREFIX+'auth') === '1';
+  const email   = localStorage.getItem(LS_PREFIX+'email') || '';
+
+  if(!navigator.onLine){
+    if(hadAuth) enterOfflineApp();
+    else showFatal('Sin conexión', 'Conéctate a internet para iniciar sesión la primera vez.');
+    return;
+  }
+
+  if(hadAuth){
+    let settled=false;
+    const timer=setTimeout(()=>{ if(!settled){ settled=true; showLoginScreen(); } },10000);
+    tokenClient.callback = (resp)=>{
+      if(settled) return; settled=true; clearTimeout(timer);
+      onTokenReceived(resp);
+    };
+    tokenClient.requestAccessToken({prompt:'', hint: email||undefined});
+  } else {
+    showLoginScreen();
+  }
+}
+
+function onTokenReceived(resp){
+  if(resp.error){ showLoginScreen(); return; }
+  accessToken = resp.access_token;
+  localStorage.setItem(LS_PREFIX+'auth','1');
+  fetchUserEmail();
+  startupApp();
+}
+
+async function fetchUserEmail(){
+  try{
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {headers:{Authorization:`Bearer ${accessToken}`}});
+    if(r.ok){ const j = await r.json(); if(j.email) localStorage.setItem(LS_PREFIX+'email', j.email); }
+  }catch(e){}
+}
+
+function doLogin(){
+  if(!tokenClient) return;
+  tokenClient.callback = onTokenReceived;
+  tokenClient.requestAccessToken({prompt:'consent'});
+}
+function doLogout(){
+  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
+  accessToken=null;
+  localStorage.removeItem(LS_PREFIX+'auth');
+  localStorage.removeItem(LS_PREFIX+'email');
+  showLoginScreen();
+}
+
+function showLoginScreen(){
+  document.getElementById('hdr-t2').textContent = 'Sin conectar';
+  document.getElementById('app').innerHTML = `
+    <div class="state">
+      <div class="ico">📝</div>
+      <h3>RECDAVI</h3>
+      <p>Recogida de datos de producción PSFV Villena-Alicante. Inicia sesión con tu cuenta de Google para empezar.</p>
+      <button class="btn btn-primary no-print" style="max-width:260px" onclick="doLogin()">Iniciar sesión con Google</button>
+    </div>`;
+}
+function showFatal(title,msg){
+  document.getElementById('app').innerHTML = `<div class="state"><div class="ico">⚠️</div><h3>${esc(title)}</h3><p>${esc(msg)}</p></div>`;
+}
+
+function enterOfflineApp(){
+  document.getElementById('hdr-t2').textContent = 'Modo sin conexión';
+  goHome();
+}
+
+async function startupApp(){
+  document.getElementById('hdr-t2').textContent = localStorage.getItem(LS_PREFIX+'email') || 'Conectado';
+  checkAppVersion();
+  await syncQueue();
+  goHome();
+  prefetchAllSheets();
+  updateSyncBadge();
+}
+
+// ═══════════════════════════════════════════════
+// SHEETS API
+// ═══════════════════════════════════════════════
+function col(idx){ // 0-based → letra de columna A1
+  let n = idx+1, s='';
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+
+async function postJson(url, body, method='POST'){
+  if(!navigator.onLine) return {offline:true};
+  try{
+    const r = await fetch(url, {
+      method,
+      headers:{Authorization:`Bearer ${accessToken}`, 'Content-Type':'application/json'},
+      body: body!==undefined ? JSON.stringify(body) : undefined,
+    });
+    if(r.status===401){ return {unauthorized:true}; }
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error?.message||`HTTP ${r.status}`); }
+    return await r.json().catch(()=>({}));
+  }catch(e){
+    if(!navigator.onLine) return {offline:true};
+    throw e;
+  }
+}
+
+async function loadSheetData(sheetName){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(`'${sheetName}'!A:J`)}`;
+  const r = await fetch(url, {headers:{Authorization:`Bearer ${accessToken}`}});
+  if(r.status===401){ silentLogin(); throw new Error('Sesión expirada, reintenta.'); }
+  if(!r.ok){ throw new Error(`HTTP ${r.status}`); }
+  const json = await r.json();
+  const values = json.values || [];
+  const rows = values.slice(1).map((data,i)=>({data, sheetRow:i+2}));
+  const entry = {rows, ts:Date.now()};
+  sheetCache[sheetName]=entry;
+  cacheSheetRows(sheetName, rows);
+  return rows;
+}
+
+function silentLogin(){
+  if(!tokenClient) return;
+  tokenClient.callback = onTokenReceived;
+  tokenClient.requestAccessToken({prompt:'', hint: localStorage.getItem(LS_PREFIX+'email')||undefined});
+}
+
+async function getSheetRows(sheetName, forceNetwork=false){
+  if(!forceNetwork && sheetCache[sheetName]) return sheetCache[sheetName].rows;
+  if(navigator.onLine){
+    try{ return await loadSheetData(sheetName); }
+    catch(e){ console.warn('loadSheetData',sheetName,e); }
+  }
+  const cached = loadSheetFromCache(sheetName);
+  if(cached){ sheetCache[sheetName]={rows:cached, ts:Date.now()}; return cached; }
+  return [];
+}
+
+function cacheSheetRows(sheetName, rows){
+  try{ localStorage.setItem(LS_PREFIX+'cache_'+sheetName, JSON.stringify({rows, ts:Date.now()})); }catch(e){}
+}
+function loadSheetFromCache(sheetName){
+  try{
+    const raw = localStorage.getItem(LS_PREFIX+'cache_'+sheetName);
+    if(!raw) return null;
+    return JSON.parse(raw).rows || null;
+  }catch(e){ return null; }
+}
+
+async function prefetchAllSheets(){
+  if(!navigator.onLine) return;
+  for(const name of Object.keys(SHEETS)){
+    try{ await loadSheetData(name); }catch(e){ console.warn('prefetch',name,e); }
+  }
+  localStorage.setItem(LS_PREFIX+'last_sync', new Date().toISOString());
+}
+
+// ═══════════════════════════════════════════════
+// COLA OFFLINE
+// ═══════════════════════════════════════════════
+function getQueue(){
+  try{ return JSON.parse(localStorage.getItem(LS_PREFIX+'queue')||'[]'); }catch(e){ return []; }
+}
+function setQueue(q){ localStorage.setItem(LS_PREFIX+'queue', JSON.stringify(q)); updateSyncBadge(); }
+function queueOp(op){
+  const q = getQueue();
+  q.push({id: Date.now()+'_'+Math.random().toString(36).slice(2), ts:Date.now(), ...op});
+  setQueue(q);
+}
+
+async function syncQueue(){
+  if(syncingQueue || !navigator.onLine) return;
+  const q = getQueue();
+  if(!q.length) return;
+  syncingQueue = true;
+  updateSyncBadge();
+  let done=0, remaining=[...q];
+  for(const op of q){
+    try{
+      const res = await runOp(op);
+      if(res?.unauthorized){ silentLogin(); break; }
+      if(res?.offline) break; // se volvió a cortar, dejar el resto en cola
+      remaining = remaining.filter(o=>o.id!==op.id);
+      done++;
+    }catch(e){
+      console.warn('syncQueue op failed, se mantiene en cola', e);
+    }
+  }
+  setQueue(remaining);
+  syncingQueue = false;
+  updateSyncBadge();
+  if(done) toast(`✅ ${done} registro${done>1?'s':''} sincronizado${done>1?'s':''}`, 'ok');
+}
+
+async function runOp(op){
+  if(op.kind==='batchUpdate'){
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
+    return postJson(url, {valueInputOption:'USER_ENTERED', data:op.updates});
+  }
+  if(op.kind==='append'){
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(op.range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    return postJson(url, {values:[op.values]});
+  }
+}
+
+function updateSyncBadge(){
+  const btn = document.getElementById('sync-btn');
+  const badge = document.getElementById('sync-badge');
+  const q = getQueue();
+  if(!navigator.onLine){
+    btn.style.display='flex'; btn.title='Sin conexión'; btn.style.color='#f87171';
+    badge.style.display = q.length? 'flex':'none'; badge.textContent=q.length;
+    return;
+  }
+  if(syncingQueue){
+    btn.style.display='flex'; btn.title='Sincronizando…';
+    badge.style.display='none';
+    return;
+  }
+  if(q.length){
+    btn.style.display='flex'; btn.title=`${q.length} pendiente(s) — toca para sincronizar`;
+    badge.style.display='flex'; badge.textContent=q.length;
+    return;
+  }
+  btn.style.display='none';
+}
+function onSyncBtn(){
+  if(!navigator.onLine){ toast('📴 Sin conexión','warn'); return; }
+  syncQueue();
+}
+
+window.addEventListener('online', ()=>{ toast('📶 Conexión restaurada','ok'); syncQueue(); prefetchAllSheets(); updateSyncBadge(); });
+window.addEventListener('offline', ()=>{ toast('📴 Sin conexión — se guardará localmente','warn'); updateSyncBadge(); });
+
+// ═══════════════════════════════════════════════
+// NAVEGACIÓN / ESTADO
+// ═══════════════════════════════════════════════
+function pushHistory(){ history_.push(JSON.stringify(state)); document.getElementById('hdr-back').disabled = history_.length===0; }
+function goBack(){
+  if(!history_.length) return;
+  state = JSON.parse(history_.pop());
+  document.getElementById('hdr-back').disabled = history_.length===0;
+  renderStep();
+}
+function goHome(){
+  history_ = [];
+  document.getElementById('hdr-back').disabled = true;
+  state = {step:'home'};
+  renderStep();
+}
+function nav(newState){ pushHistory(); state = {...state, ...newState}; renderStep(); }
+
+function renderStep(){
+  const app = document.getElementById('app');
+  document.getElementById('hdr-t1').textContent = state.sheet || 'RECDAVI';
+  if(state.step==='home'){ document.getElementById('hdr-t1').textContent='RECDAVI'; renderHome(); return; }
+  if(state.step==='ctlist'){ renderCtList(); return; }
+  if(state.step==='form'){ renderForm(); return; }
+  if(state.step==='success'){ renderSuccess(); return; }
+  if(state.step==='resumen'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenForm(); return; }
+  if(state.step==='resumenResult'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenResult(); return; }
+  app.innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
+}
+
+function renderHome(){
+  const app = document.getElementById('app');
+  const items = Object.entries(SHEETS).map(([name,cfg])=>`
+    <div class="list-item no-print" onclick="openSheet('${esc(name)}')">
+      <div style="font-size:22px">${cfg.icon||'📄'}</div>
+      <div class="li-main">
+        <div class="li-title">${esc(name)}</div>
+        <div class="li-sub">${cfg.type==='append'?'Registrar nuevo':'Marcar CT completado'}</div>
+      </div>
+      <div class="li-arrow">›</div>
+    </div>`).join('');
+  app.innerHTML = `<div class="wrap">
+    <div class="hint">Selecciona la hoja donde quieres registrar producción de hoy.</div>
+    ${items}
+    <div class="list-item no-print" onclick="openResumen()" style="margin-top:6px">
+      <div style="font-size:22px">📊</div>
+      <div class="li-main"><div class="li-title">Resumen de producción</div><div class="li-sub">Por fecha, mes o rango · valorización en €</div></div>
+      <div class="li-arrow">›</div>
+    </div>
+  </div>`;
+}
+
+async function openSheet(name){
+  const cfg = SHEETS[name];
+  nav({sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}});
+  if(cfg.type!=='append'){
+    document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Cargando…</h3></div>`;
+    const rows = await getSheetRows(name);
+    state.rows = rows;
+    renderStep();
+  }
+}
+
+function renderCtList(){
+  const {cfg, rows=[]} = state;
+  const app = document.getElementById('app');
+  if(!rows.length){
+    app.innerHTML = `<div class="state"><div class="ico">📭</div><h3>Sin filas</h3><p>No hay CTs cargados en "${esc(state.sheet)}". Verifica el Sheet o sincroniza.</p></div>`;
+    return;
+  }
+  const items = rows.map((r,i)=>{
+    const ct = r.data[cfg.cCt] || `Fila ${r.sheetRow}`;
+    const done = (r.data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
+    const pill = done ? `<span class="pill pill-green">🟢 ${esc(cfg.doneValue)}</span>` : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+    return `<div class="list-item no-print" onclick="openCt(${i})">
+      <div class="li-main"><div class="li-title">${esc(ct)}</div><div class="li-sub">${cfg.cAnillo!=null && r.data[cfg.cAnillo] ? 'Anillo '+esc(r.data[cfg.cAnillo]) : ''}</div></div>
+      ${pill}
+    </div>`;
+  }).join('');
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s)</div>${items}</div>`;
+}
+
+function openCt(i){
+  const {cfg, rows} = state;
+  const row = rows[i];
+  const vals = {};
+  (cfg.fields||[]).forEach(f=>{ vals[f.key] = row.data[f.col] || ''; });
+  nav({step:'form', rowIdx:i, formVals:vals});
+}
+
+function renderForm(){
+  const {cfg} = state;
+  const app = document.getElementById('app');
+
+  if(cfg.type==='ct-item'){
+    const row = state.rows[state.rowIdx];
+    const ct = row.data[cfg.cCt] || `Fila ${row.sheetRow}`;
+    const fieldsHtml = (cfg.fields||[]).map(f=>`
+      <div class="field">
+        <label>${esc(f.label)}</label>
+        <input type="${f.kind==='number'?'number':'text'}" id="f-${f.key}" value="${esc(state.formVals[f.key]||'')}" placeholder="${esc(f.placeholder||'')}" inputmode="${f.kind==='number'?'decimal':'text'}">
+      </div>`).join('');
+    app.innerHTML = `<div class="wrap">
+      <div class="card">
+        <div class="li-title" style="margin-bottom:10px">${esc(ct)}</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${esc(state.formVals.fecha || todayISO())}"></div>
+          ${fieldsHtml}
+        </div>
+      </div>
+      <button class="btn btn-primary no-print" onclick="submitCtItem()">✅ Guardar</button>
+    </div>`;
+    return;
+  }
+
+  // type === 'append'
+  const opts = (cfg.elementoOptions||[]).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  app.innerHTML = `<div class="wrap">
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${state.formVals?.fecha || todayISO()}"></div>
+        <div class="field"><label>CT</label><input type="text" id="f-ct" placeholder="Ej. CT-01" value="${esc(state.formVals?.ct||'')}"></div>
+        <div class="field"><label>Elemento</label><select id="f-elemento">
+          <option value="">— Selecciona —</option>${opts}
+        </select></div>
+        <div class="chk-row"><input type="checkbox" id="f-realizado" ${state.formVals?.realizado===false?'':'checked'}><label for="f-realizado" style="text-transform:none;font-weight:600;font-size:13px">Marcar como ${esc(cfg.doneValue)}</label></div>
+      </div>
+    </div>
+    <button class="btn btn-primary no-print" onclick="submitAppend()">✅ Guardar</button>
+  </div>`;
+}
+
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function fechaSheetFmt(iso){ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
+
+async function submitCtItem(){
+  const {cfg, rows, rowIdx, sheet} = state;
+  const row = rows[rowIdx];
+  const fecha = document.getElementById('f-fecha').value;
+  if(!fecha){ toast('Selecciona una fecha','warn'); return; }
+
+  const updates = [
+    {range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]},
+    {range:`'${sheet}'!${col(cfg.cEstado)}${row.sheetRow}`, values:[[cfg.doneValue]]},
+  ];
+  const newVals = {fecha};
+  (cfg.fields||[]).forEach(f=>{
+    const v = document.getElementById('f-'+f.key).value;
+    newVals[f.key]=v;
+    updates.push({range:`'${sheet}'!${col(f.col)}${row.sheetRow}`, values:[[v]]});
+  });
+
+  await doSubmit({kind:'batchUpdate', updates}, ()=>{
+    updates.forEach(u=>{
+      const m = u.range.match(/!([A-Z]+)(\d+)$/);
+      const colLetters = m[1];
+      let idx=0; for(const ch of colLetters) idx = idx*26 + (ch.charCodeAt(0)-64); idx--;
+      row.data[idx] = u.values[0][0];
+    });
+    cacheSheetRows(sheet, rows);
+  });
+}
+
+async function submitAppend(){
+  const {cfg, sheet} = state;
+  const fecha = document.getElementById('f-fecha').value;
+  const ct = document.getElementById('f-ct').value.trim();
+  const elemento = document.getElementById('f-elemento').value;
+  const realizado = document.getElementById('f-realizado').checked;
+  if(!fecha || !ct || !elemento){ toast('Completa fecha, CT y elemento','warn'); return; }
+
+  const row = [];
+  row[cfg.cFecha] = fechaSheetFmt(fecha);
+  row[cfg.cCt] = ct;
+  row[cfg.cElemento] = elemento;
+  row[cfg.cEstado] = realizado ? cfg.doneValue : 'NO REALIZADO';
+  const maxCol = Math.max(cfg.cFecha,cfg.cCt,cfg.cElemento,cfg.cEstado);
+  const values = []; for(let i=0;i<=maxCol;i++) values.push(row[i] ?? '');
+
+  await doSubmit({kind:'append', range:`'${sheet}'!A:Z`, values}, ()=>{
+    const cached = sheetCache[sheet]?.rows || [];
+    cached.push({data:values, sheetRow: cached.length+2});
+    sheetCache[sheet] = {rows:cached, ts:Date.now()};
+    cacheSheetRows(sheet, cached);
+  });
+}
+
+async function doSubmit(op, applyLocal){
+  const btns = document.querySelectorAll('.btn-primary');
+  btns.forEach(b=>b.disabled=true);
+  try{
+    const res = await runOp(op);
+    if(res?.unauthorized){ silentLogin(); toast('Sesión expirada, reintenta','warn'); btns.forEach(b=>b.disabled=false); return; }
+    if(res?.offline){
+      queueOp(op);
+      applyLocal();
+      toast('📴 Guardado en el dispositivo — se enviará al recuperar conexión','warn');
+    } else {
+      applyLocal();
+      toast('✅ Guardado en el Sheet','ok');
+    }
+    updateSyncBadge();
+    nav({step:'success'});
+  }catch(e){
+    console.error(e);
+    toast('❌ '+e.message,'err');
+    btns.forEach(b=>b.disabled=false);
+  }
+}
+
+function renderSuccess(){
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="state">
+    <div class="ico">✅</div>
+    <h3>Guardado</h3>
+    <p>El registro se guardó correctamente en <strong>${esc(state.sheet)}</strong>.</p>
+    <button class="btn btn-primary no-print" style="max-width:260px" onclick="continueSheet()">Continuar en ${esc(state.sheet)}</button>
+    <button class="btn btn-secondary no-print" style="max-width:260px" onclick="goHome()">Elegir otra hoja</button>
+  </div>`;
+}
+async function continueSheet(){
+  const name = state.sheet, cfg = state.cfg;
+  history_ = []; document.getElementById('hdr-back').disabled = true;
+  state = {sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}};
+  if(cfg.type!=='append'){
+    document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
+    state.rows = await getSheetRows(name, true);
+  }
+  renderStep();
+}
+
+// ═══════════════════════════════════════════════
+// RESUMEN (producción + valorización en €) — reutiliza PRICE_LIST
+// ═══════════════════════════════════════════════
+function resParseDate(str){
+  if(!str) return null;
+  const s = String(str).trim();
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  return null;
+}
+function resDateMs(d){ return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+
+function openResumen(){ nav({step:'resumen'}); }
+
+function renderResumenForm(){
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="wrap">
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label>Tipo de resumen</label><select id="r-modo">
+        <option value="produccion">Producción</option>
+        <option value="valorizacion">Valorización (€)</option>
+      </select></div>
+      <div class="field"><label>Buscar por</label><select id="r-tipo" onchange="toggleResTipo()">
+        <option value="fecha">Fecha exacta</option>
+        <option value="mes">Mes completo</option>
+        <option value="rango">Rango de fechas</option>
+      </select></div>
+      <div class="field" id="rg-fecha"><label>Fecha</label><input type="date" id="r-fecha" value="${todayISO()}"></div>
+      <div class="field" id="rg-mes" style="display:none"><label>Mes y año</label><input type="month" id="r-mes"></div>
+      <div id="rg-rango" style="display:none;gap:12px" class="field">
+        <label>Desde</label><input type="date" id="r-from">
+        <label style="margin-top:6px">Hasta</label><input type="date" id="r-to">
+      </div>
+    </div>
+    <button class="btn btn-primary no-print" onclick="runResumen()">🔍 Buscar</button>
+  </div>`;
+}
+function toggleResTipo(){
+  const tipo = document.getElementById('r-tipo').value;
+  document.getElementById('rg-fecha').style.display = tipo==='fecha' ? 'flex':'none';
+  document.getElementById('rg-mes').style.display   = tipo==='mes'   ? 'flex':'none';
+  document.getElementById('rg-rango').style.display = tipo==='rango' ? 'flex':'none';
+}
+
+let lastResumen = null;
+
+async function runResumen(){
+  const modo = document.getElementById('r-modo').value;
+  const tipo = document.getElementById('r-tipo').value;
+  let fromMs, toMs, label;
+  if(tipo==='fecha'){
+    const v = document.getElementById('r-fecha').value;
+    if(!v){ toast('Selecciona una fecha','warn'); return; }
+    const d = new Date(v+'T00:00:00'); fromMs=toMs=resDateMs(d);
+    label = d.toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+  } else if(tipo==='mes'){
+    const v = document.getElementById('r-mes').value;
+    if(!v){ toast('Selecciona un mes','warn'); return; }
+    const [y,mo]=v.split('-').map(Number);
+    fromMs=Date.UTC(y,mo-1,1); toMs=Date.UTC(y,mo,0);
+    label = new Date(y,mo-1).toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  } else {
+    const f=document.getElementById('r-from').value, t=document.getElementById('r-to').value;
+    if(!f||!t){ toast('Selecciona el rango','warn'); return; }
+    fromMs=resDateMs(new Date(f+'T00:00:00')); toMs=resDateMs(new Date(t+'T00:00:00'));
+    if(fromMs>toMs){ toast('La fecha inicial debe ser anterior','warn'); return; }
+    label = `${f.split('-').reverse().join('/')} → ${t.split('-').reverse().join('/')}`;
+  }
+
+  document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Calculando…</h3></div>`;
+
+  const results = [];
+  for(const [name, cfg] of Object.entries(SHEETS)){
+    const rows = await getSheetRows(name);
+    if(!rows.length) continue;
+    const matched = rows.filter(r=>{
+      const d = resParseDate(r.data[cfg.cFecha]);
+      if(!d) return false;
+      const ms = resDateMs(d);
+      return ms>=fromMs && ms<=toMs;
+    }).map(r=>r.data);
+    if(matched.length) results.push({sheet:name, cfg, rows:matched});
+  }
+
+  lastResumen = {modo, label, results};
+  nav({step:'resumenResult'});
+}
+
+function computeEurosForSheet(name, cfg, rows){
+  const ok = rows.filter(r=>(r[cfg.cEstado]||'').trim().toUpperCase()===cfg.doneValue.toUpperCase());
+  const out=[];
+  if(cfg.type==='ct-item'){
+    // Concepto principal según el nombre de la hoja/campos
+    if(name==='MONTAJE CTS'){
+      const registros = ok.length;
+      const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
+      const fus = fusIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[fusIdx])||0),0) : 0;
+      if(registros) out.push({label:PRICE_LIST.montaje.label, detail:`${registros} × ${PRICE_LIST.montaje.price}€`, total:registros*PRICE_LIST.montaje.price});
+      if(fus) out.push({label:PRICE_LIST.fusionado.label, detail:`${fus} × ${PRICE_LIST.fusionado.price}€`, total:fus*PRICE_LIST.fusionado.price});
+    } else if(name==='FUSIONADO CTS'){
+      const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
+      const prepIdx = (cfg.fields||[]).find(f=>f.key==='preparacion')?.col;
+      const fus = fusIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[fusIdx])||0),0) : 0;
+      const prep = prepIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[prepIdx])||0),0) : 0;
+      if(fus) out.push({label:PRICE_LIST.fusionado.label, detail:`${fus} × ${PRICE_LIST.fusionado.price}€`, total:fus*PRICE_LIST.fusionado.price});
+      if(prep) out.push({label:PRICE_LIST.preparacion.label, detail:`${prep} × ${PRICE_LIST.preparacion.price}€`, total:prep*PRICE_LIST.preparacion.price});
+    }
+  } else if(cfg.type==='append'){
+    const counts={};
+    ok.forEach(r=>{
+      const item = matchPriceKeyword(r[cfg.cElemento]);
+      if(item) counts[item]=(counts[item]||0)+1;
+    });
+    Object.entries(counts).forEach(([item,n])=>{
+      out.push({label:PRICE_LIST[item].label, detail:`${n} × ${PRICE_LIST[item].price}€`, total:n*PRICE_LIST[item].price});
+    });
+  }
+  return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
+}
+
+function fmtEuro(n){ return (Math.round(n*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+
+function renderResumenResult(){
+  const app = document.getElementById('app');
+  const {modo, label, results} = lastResumen;
+
+  if(!results.length){
+    app.innerHTML = `<div class="state"><div class="ico">🔍</div><h3>Sin resultados</h3><p>No hay registros para <strong>${esc(label)}</strong>.</p>
+      <button class="btn btn-secondary no-print" style="max-width:260px" onclick="nav({step:'resumen'})">Cambiar filtros</button></div>`;
+    return;
+  }
+
+  if(modo==='valorizacion'){
+    const priced = results.map(({sheet,cfg,rows})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows)})).filter(r=>r.rows.length);
+    if(!priced.length){
+      app.innerHTML = `<div class="state"><div class="ico">💶</div><h3>Sin producción valorizable</h3><p>Para <strong>${esc(label)}</strong>.</p>
+        <button class="btn btn-secondary no-print" style="max-width:260px" onclick="nav({step:'resumen'})">Cambiar filtros</button></div>`;
+      return;
+    }
+    const grand = priced.reduce((s,r)=>s+r.totalEuros,0);
+    const blocks = priced.map(({sheet,rows,totalEuros})=>`
+      <div class="card" id="print-block">
+        <div class="res-block-title"><span>${esc(sheet)}</span><span>${fmtEuro(totalEuros)}</span></div>
+        <table class="res-table"><thead><tr><th>Concepto</th><th>Detalle</th><th>Importe</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${esc(r.detail)}</td><td class="num">${fmtEuro(r.total)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Subtotal</td><td class="num">${fmtEuro(totalEuros)}</td></tr></tfoot></table>
+      </div>`).join('');
+    app.innerHTML = `<div class="wrap">
+      <div class="hint">${esc(label)}</div>
+      ${blocks}
+      <div class="grand-total"><span>TOTAL GENERAL</span><span>${fmtEuro(grand)}</span></div>
+      <div style="display:flex;gap:8px" class="no-print">
+        <button class="btn btn-secondary" onclick="window.print()">🖨 PDF</button>
+        <button class="btn btn-secondary" onclick="nav({step:'resumen'})">Cambiar filtros</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const blocks = results.map(({sheet,cfg,rows})=>`
+    <div class="card">
+      <div class="res-block-title"><span>${esc(sheet)}</span><span>${rows.length} registro${rows.length>1?'s':''}</span></div>
+      <table class="res-table"><tbody>
+      ${rows.map(r=>`<tr><td>${esc(r[cfg.cFecha]||'')}</td><td>${esc(r[cfg.cCt]||'')}</td><td>${esc((r[cfg.cEstado]||''))}</td></tr>`).join('')}
+      </tbody></table>
+    </div>`).join('');
+  app.innerHTML = `<div class="wrap">
+    <div class="hint">${esc(label)}</div>
+    ${blocks}
+    <div style="display:flex;gap:8px" class="no-print">
+      <button class="btn btn-secondary" onclick="window.print()">🖨 PDF</button>
+      <button class="btn btn-secondary" onclick="nav({step:'resumen'})">Cambiar filtros</button>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(type?' '+type:'');
+  void t.offsetHeight; t.classList.add('show');
+  if(toastTmr) clearTimeout(toastTmr);
+  toastTmr=setTimeout(()=>t.classList.remove('show'),3200);
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+async function checkAppVersion(){
+  try{
+    const r = await fetch('./version.json',{cache:'no-store'});
+    if(!r.ok) return;
+    const {v} = await r.json();
+    if(!v) return;
+    const stored = localStorage.getItem(LS_PREFIX+'app_v');
+    if(stored && stored!==v){ toast(`🔄 App actualizada a v${v}`,'ok'); }
+    APP_VERSION=v; localStorage.setItem(LS_PREFIX+'app_v', v);
+    refreshFoot();
+  }catch(e){}
+}
+function refreshFoot(){
+  document.getElementById('foot').textContent = APP_VERSION ? `v${APP_VERSION}` : '';
+}
+
+async function registerSW(){
+  if(!('serviceWorker' in navigator)) return;
+  try{
+    const reg = await navigator.serviceWorker.register('sw.js');
+    reg.update().catch(()=>{});
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
+    reg.addEventListener('updatefound',()=>{
+      const nw = reg.installing;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed' && navigator.serviceWorker.controller) nw.postMessage({type:'SKIP_WAITING'});
+      });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      toast('🔄 App actualizada','ok');
+      setTimeout(()=>window.location.reload(), 600);
+    });
+  }catch(e){ console.warn('SW:',e); }
+}
+
+// ═══════════════════════════════════════════════
+// ARRANQUE
+// ═══════════════════════════════════════════════
+refreshFoot();
+registerSW();
+initAuth().catch(e=>{ console.error(e); showFatal('Error', e.message); });
+</script>
+</body>
+</html>
