@@ -64,7 +64,8 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .hdr-btn:hover{background:rgba(255,255,255,.27)}
 .hdr-badge{position:absolute;top:-4px;right:-4px;background:#facc15;color:#1a1a18;font-size:9px;font-weight:800;border-radius:99px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px}
 
-.app{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding-bottom:calc(16px + var(--safe-bot))}
+.app{flex:1;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(16px + var(--safe-bot))}
+.app.has-selbar{padding-bottom:calc(78px + var(--safe-bot))}
 .wrap{padding:14px;display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto;width:100%}
 
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;box-shadow:var(--shadow)}
@@ -79,12 +80,19 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-sm{height:34px;font-size:12px;padding:0 12px;width:auto}
 
-.list-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s}
+.list-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .12s,border-color .12s}
 .list-item:hover{background:var(--card2)}
+.list-item.sel{border-color:var(--blue);background:var(--blue-lt)}
 .list-item .li-main{flex:1;min-width:0}
 .li-title{font-size:14px;font-weight:700;color:var(--text)}
 .li-sub{font-size:11px;color:var(--t3);margin-top:2px}
 .li-arrow{color:var(--t4);font-size:16px}
+.li-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--border-s);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;background:var(--card)}
+.list-item.sel .li-check{background:var(--blue);border-color:var(--blue)}
+
+.selbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);border-top:1px solid var(--border);box-shadow:0 -2px 10px rgba(0,0,0,.12);padding:10px 14px calc(10px + var(--safe-bot));display:flex;align-items:center;gap:10px}
+.selbar .selbar-count{font-size:12.5px;font-weight:700;color:var(--text);flex-shrink:0;white-space:nowrap}
+.selbar .btn{width:auto;flex:1;height:42px}
 
 .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .pill-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
@@ -551,6 +559,7 @@ function nav(newState){ pushHistory(); state = {...state, ...newState}; renderSt
 
 function renderStep(){
   const app = document.getElementById('app');
+  if(state.step!=='ctlist') app.className = 'app';
   document.getElementById('hdr-t1').textContent = state.sheet || 'RECDAVI';
   if(state.step==='home'){ document.getElementById('hdr-t1').textContent='RECDAVI'; renderHome(); return; }
   if(state.step==='ctlist'){ renderCtList(); return; }
@@ -585,7 +594,7 @@ function renderHome(){
 
 async function openSheet(name){
   const cfg = SHEETS[name];
-  nav({sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}});
+  nav({sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}, selected:[]});
   if(cfg.type!=='append'){
     document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Cargando…</h3></div>`;
     const rows = await getSheetRows(name);
@@ -596,38 +605,67 @@ async function openSheet(name){
 
 function renderCtList(){
   const {cfg, rows=[]} = state;
+  if(!Array.isArray(state.selected)) state.selected = [];
   const app = document.getElementById('app');
   if(!rows.length){
     app.innerHTML = `<div class="state"><div class="ico">📭</div><h3>Sin filas</h3><p>No hay CTs cargados en "${esc(state.sheet)}". Verifica el Sheet o sincroniza.</p></div>`;
     return;
   }
+  const n = state.selected.length;
   const items = rows.map((r,i)=>{
     const ct = r.data[cfg.cCt] || `Fila ${r.sheetRow}`;
     const done = (r.data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
     const pill = done ? `<span class="pill pill-green">🟢 ${esc(cfg.doneValue)}</span>` : `<span class="pill pill-amber">🟡 Pendiente</span>`;
-    return `<div class="list-item no-print" onclick="openCt(${i})">
+    const isSel = state.selected.includes(i);
+    return `<div class="list-item no-print${isSel?' sel':''}" onclick="toggleCtSelect(${i})">
+      <div class="li-check">${isSel?'✓':''}</div>
       <div class="li-main"><div class="li-title">${esc(ct)}</div><div class="li-sub">${cfg.cAnillo!=null && r.data[cfg.cAnillo] ? 'Anillo '+esc(r.data[cfg.cAnillo]) : ''}</div></div>
       ${pill}
     </div>`;
   }).join('');
-  app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s)</div>${items}</div>`;
+  app.className = 'app' + (n>0?' has-selbar':'');
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s) · toca uno o varios para seleccionarlos</div>${items}</div>
+    ${n>0?`<div class="selbar no-print">
+      <div class="selbar-count">${n} seleccionado${n>1?'s':''}</div>
+      <button class="btn btn-secondary" onclick="clearCtSelection()">Limpiar</button>
+      <button class="btn btn-primary" onclick="continueMulti()">Continuar</button>
+    </div>`:''}`;
 }
 
-function openCt(i){
+function toggleCtSelect(i){
+  if(!Array.isArray(state.selected)) state.selected = [];
+  const idx = state.selected.indexOf(i);
+  if(idx>=0) state.selected.splice(idx,1);
+  else state.selected.push(i);
+  renderCtList();
+}
+function clearCtSelection(){
+  state.selected = [];
+  renderCtList();
+}
+
+function continueMulti(){
   const {cfg, rows} = state;
-  const row = rows[i];
+  const idxs = [...(state.selected||[])];
+  if(!idxs.length) return;
   const vals = {};
-  (cfg.fields||[]).forEach(f=>{ vals[f.key] = row.data[f.col] || ''; });
-  nav({step:'form', rowIdx:i, formVals:vals});
+  if(idxs.length===1){
+    const row = rows[idxs[0]];
+    (cfg.fields||[]).forEach(f=>{ vals[f.key] = row.data[f.col] || ''; });
+  }
+  nav({step:'form', selectedIdxs:idxs, formVals:vals});
 }
 
 function renderForm(){
   const {cfg} = state;
   const app = document.getElementById('app');
+  app.className = 'app';
 
   if(cfg.type==='ct-item'){
-    const row = state.rows[state.rowIdx];
-    const ct = row.data[cfg.cCt] || `Fila ${row.sheetRow}`;
+    const idxs = state.selectedIdxs || [];
+    const rowsSel = idxs.map(i=>state.rows[i]);
+    const ctNames = rowsSel.map(r=>r.data[cfg.cCt] || `Fila ${r.sheetRow}`);
+    const title = ctNames.length===1 ? ctNames[0] : `${ctNames.length} CTs: ${ctNames.join(', ')}`;
     const fieldsHtml = (cfg.fields||[]).map(f=>`
       <div class="field">
         <label>${esc(f.label)}</label>
@@ -635,13 +673,13 @@ function renderForm(){
       </div>`).join('');
     app.innerHTML = `<div class="wrap">
       <div class="card">
-        <div class="li-title" style="margin-bottom:10px">${esc(ct)}</div>
+        <div class="li-title" style="margin-bottom:10px">${esc(title)}</div>
         <div style="display:flex;flex-direction:column;gap:12px">
           <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${esc(state.formVals.fecha || todayISO())}"></div>
           ${fieldsHtml}
         </div>
       </div>
-      <button class="btn btn-primary no-print" onclick="submitCtItem()">✅ Guardar</button>
+      <button class="btn btn-primary no-print" onclick="submitCtItem()">✅ Guardar${ctNames.length>1?` (${ctNames.length} CTs)`:''}</button>
     </div>`;
     return;
   }
@@ -667,30 +705,35 @@ function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
 function fechaSheetFmt(iso){ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
 
 async function submitCtItem(){
-  const {cfg, rows, rowIdx, sheet} = state;
-  const row = rows[rowIdx];
+  const {cfg, rows, sheet} = state;
+  const idxs = state.selectedIdxs || [];
+  if(!idxs.length) return;
   const fecha = document.getElementById('f-fecha').value;
   if(!fecha){ toast('Selecciona una fecha','warn'); return; }
 
-  const updates = [
-    {range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]},
-    {range:`'${sheet}'!${col(cfg.cEstado)}${row.sheetRow}`, values:[[cfg.doneValue]]},
-  ];
-  const newVals = {fecha};
-  (cfg.fields||[]).forEach(f=>{
-    const v = document.getElementById('f-'+f.key).value;
-    newVals[f.key]=v;
-    updates.push({range:`'${sheet}'!${col(f.col)}${row.sheetRow}`, values:[[v]]});
+  const fieldVals = {};
+  (cfg.fields||[]).forEach(f=>{ fieldVals[f.key] = document.getElementById('f-'+f.key).value; });
+
+  const updates = [];
+  idxs.forEach(i=>{
+    const row = rows[i];
+    updates.push({range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]});
+    updates.push({range:`'${sheet}'!${col(cfg.cEstado)}${row.sheetRow}`, values:[[cfg.doneValue]]});
+    (cfg.fields||[]).forEach(f=>{
+      updates.push({range:`'${sheet}'!${col(f.col)}${row.sheetRow}`, values:[[fieldVals[f.key]]]});
+    });
   });
 
   await doSubmit({kind:'batchUpdate', updates}, ()=>{
     updates.forEach(u=>{
       const m = u.range.match(/!([A-Z]+)(\d+)$/);
-      const colLetters = m[1];
-      let idx=0; for(const ch of colLetters) idx = idx*26 + (ch.charCodeAt(0)-64); idx--;
-      row.data[idx] = u.values[0][0];
+      const colLetters = m[1], sheetRow = +m[2];
+      let ci=0; for(const ch of colLetters) ci = ci*26 + (ch.charCodeAt(0)-64); ci--;
+      const row = rows.find(r=>r.sheetRow===sheetRow);
+      if(row) row.data[ci] = u.values[0][0];
     });
     cacheSheetRows(sheet, rows);
+    state.selected = [];
   });
 }
 
@@ -754,7 +797,7 @@ function renderSuccess(){
 async function continueSheet(){
   const name = state.sheet, cfg = state.cfg;
   history_ = []; document.getElementById('hdr-back').disabled = true;
-  state = {sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}};
+  state = {sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}, selected:[]};
   if(cfg.type!=='append'){
     document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
     state.rows = await getSheetRows(name, true);
