@@ -188,14 +188,12 @@ let APP_VERSION = '1.0.0.0';
 //  - 'append': formulario simple que siempre añade una fila nueva.
 // ═══════════════════════════════════════════════
 const SHEETS = {
-  'MONTAJE CTS': {
+  'MONTAJE ARMARIO COM': {
     type:'ct-item',
-    cFecha:0, cAnillo:1, cCt:2, cEstado:4,
+    cFecha:0, cAnillo:1, cCt:2, cEstado:3,
     doneValue:'REALIZADO',
     icon:'🔧',
-    fields:[
-      {key:'fusiones', col:3, label:'Cantidad Fusiones', kind:'number', placeholder:'Ej. 48'},
-    ],
+    fields:[],
   },
   'FUSIONADO CTS': {
     type:'ct-item',
@@ -900,12 +898,9 @@ function computeEurosForSheet(name, cfg, rows){
   const out=[];
   if(cfg.type==='ct-item'){
     // Concepto principal según el nombre de la hoja/campos
-    if(name==='MONTAJE CTS'){
+    if(name==='MONTAJE ARMARIO COM'){
       const registros = ok.length;
-      const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
-      const fus = fusIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[fusIdx])||0),0) : 0;
       if(registros) out.push({label:PRICE_LIST.montaje.label, detail:`${registros} × ${PRICE_LIST.montaje.price}€`, total:registros*PRICE_LIST.montaje.price});
-      if(fus) out.push({label:PRICE_LIST.fusionado.label, detail:`${fus} × ${PRICE_LIST.fusionado.price}€`, total:fus*PRICE_LIST.fusionado.price});
     } else if(name==='FUSIONADO CTS'){
       const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
       const prepIdx = (cfg.fields||[]).find(f=>f.key==='preparacion')?.col;
