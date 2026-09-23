@@ -155,7 +155,8 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
     <div class="t2" id="hdr-t2">Cargando…</div>
   </div>
   <div class="hdr-acts">
-    <button class="hdr-btn" id="sync-btn" onclick="onSyncBtn()" title="Sincronización" style="display:none">↻<span class="hdr-badge" id="sync-badge" style="display:none">0</span></button>
+    <button class="hdr-btn" id="update-btn" onclick="manualUpdate()" title="Actualizar app y datos">↻</button>
+    <button class="hdr-btn" id="sync-btn" onclick="onSyncBtn()" title="Sincronización" style="display:none">📤<span class="hdr-badge" id="sync-badge" style="display:none">0</span></button>
     <button class="hdr-btn" onclick="toggleTheme()" id="btn-theme" title="Tema">🌙</button>
     <button class="hdr-btn" onclick="doLogout()" title="Salir">⏻</button>
   </div>
@@ -1061,10 +1062,35 @@ async function registerSW(){
       });
     });
     navigator.serviceWorker.addEventListener('controllerchange',()=>{
-      toast('🔄 App actualizada','ok');
-      setTimeout(()=>window.location.reload(), 600);
+      toast('🔄 App actualizada — recargando…','ok');
+      setTimeout(()=>window.location.reload(), 1800);
     });
   }catch(e){ console.warn('SW:',e); }
+}
+
+// Botón "Actualizar" del header: fuerza una comprobación de versión nueva
+// (Service Worker + version.json) y refresca los datos del Sheet.
+async function manualUpdate(){
+  const btn = document.getElementById('update-btn');
+  if(btn) btn.disabled = true;
+  toast('🔄 Buscando actualizaciones…','warn');
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(reg) await reg.update().catch(()=>{});
+    await checkAppVersion();
+    if(navigator.onLine){
+      await syncQueue();
+      await prefetchAllSheets();
+      if(state.step==='home') renderHome();
+      toast('✅ Todo al día','ok');
+    } else {
+      toast('📴 Sin conexión — no se pudo actualizar','warn');
+    }
+  }catch(e){
+    toast('❌ '+e.message,'err');
+  }finally{
+    if(btn) btn.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════
