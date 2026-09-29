@@ -997,7 +997,7 @@ function renderResumenResult(){
       ${blocks}
       <div class="grand-total"><span>TOTAL GENERAL</span><span>${fmtEuro(grand)}</span></div>
       <div style="display:flex;gap:8px" class="no-print">
-        <button class="btn btn-secondary" onclick="window.print()">🖨 PDF</button>
+        <button class="btn btn-secondary" onclick="printSmart()">🖨 PDF</button>
         <button class="btn btn-secondary" onclick="nav({step:'resumen'})">Cambiar filtros</button>
       </div>
     </div>`;
@@ -1015,7 +1015,7 @@ function renderResumenResult(){
     <div class="hint">${esc(label)}</div>
     ${blocks}
     <div style="display:flex;gap:8px" class="no-print">
-      <button class="btn btn-secondary" onclick="window.print()">🖨 PDF</button>
+      <button class="btn btn-secondary" onclick="printSmart()">🖨 PDF</button>
       <button class="btn btn-secondary" onclick="nav({step:'resumen'})">Cambiar filtros</button>
     </div>
   </div>`;
@@ -1032,6 +1032,28 @@ function toast(msg,type=''){
   toastTmr=setTimeout(()=>t.classList.remove('show'),3200);
 }
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Con la app instalada (PWA en modo "standalone"), window.print() no hace
+// nada en la mayoría de navegadores porque no hay UI de navegador para
+// mostrar el diálogo de impresión. En ese caso, clonamos el documento
+// actual en una pestaña normal del navegador, donde sí funciona.
+function printSmart(){
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if(!isStandalone){ window.print(); return; }
+  const clone = document.documentElement.cloneNode(true);
+  clone.querySelectorAll('script').forEach(s=>s.remove());
+  const printWin = window.open('', '_blank');
+  if(!printWin){
+    toast('⚠️ Habilita las ventanas emergentes en el navegador para poder imprimir','warn');
+    return;
+  }
+  printWin.document.open();
+  printWin.document.write('<!DOCTYPE html>' + clone.outerHTML);
+  printWin.document.close();
+  const doPrint = ()=>{ try{ printWin.focus(); printWin.print(); }catch(e){} };
+  if(printWin.document.readyState === 'complete') doPrint();
+  else printWin.onload = doPrint;
+}
 
 async function checkAppVersion(){
   try{
