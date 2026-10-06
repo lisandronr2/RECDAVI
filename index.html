@@ -762,28 +762,34 @@ function renderEnsayoForm(){
   const app = document.getElementById('app');
   app.className = 'app';
 
-  const ppHtml = cfg.pp.slice(0, need).map((pp,n)=>{
-    const label = `PP${n+1}`;
-    if(ensayoPPDone(cfg, data, pp)){
-      return `<div class="card" style="opacity:.6">
-        <div class="li-title">${label} — ${esc(cfg.doneValue)}</div>
-        <div class="li-sub">Fecha: ${esc(data[pp.cFecha]||'')}</div>
-      </div>`;
-    }
-    return `<div class="card">
-      <div class="li-title" style="margin-bottom:10px">${label}</div>
+  const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
+
+  const doneHtml = cfg.pp.slice(0, need).filter(pp=>ensayoPPDone(cfg, data, pp)).map((pp,n)=>`
+    <div class="card" style="opacity:.6">
+      <div class="li-title">PP${cfg.pp.indexOf(pp)+1} — ${esc(cfg.doneValue)}</div>
+      <div class="li-sub">Fecha: ${esc(data[pp.cFecha]||'')}</div>
+    </div>`).join('');
+
+  const checksHtml = pending.map(({pp,n})=>`
+    <label style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="f-pp${n+1}-ok" ${pending.length===1?'checked':''}> PP${n+1}
+      <input type="text" id="f-pp${n+1}-nombre" value="${esc(data[pp.cPP]||'')}" placeholder="Nombre / identificador (opcional)" style="flex:1;margin-left:8px">
+    </label>`).join('');
+
+  const formHtml = pending.length ? `
+    <div class="card">
+      <div class="li-title" style="margin-bottom:10px">${pending.length>1?'Marca los PP realizados':`PP${pending[0].n+1}`}</div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="f-pp${n+1}-ok"> Realizado</label>
-        <div class="field"><label>Fecha de ejecución</label><input type="date" id="f-pp${n+1}-fecha" value="${todayISO()}"></div>
-        <div class="field"><label>Nombre / identificador (opcional)</label><input type="text" id="f-pp${n+1}-nombre" value="${esc(data[pp.cPP]||'')}" placeholder="${label}"></div>
+        ${checksHtml}
+        <div class="field"><label>Fecha de realización${pending.length>1?' (misma para los marcados)':''}</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
       </div>
-    </div>`;
-  }).join('');
+    </div>` : '';
 
   app.innerHTML = `<div class="wrap">
     <div class="hint">${esc(ct)} · cada PP realizado equivale a ${cfg.ensayosPorPP} ensayos</div>
-    ${ppHtml}
-    <button class="btn btn-primary no-print" onclick="submitEnsayo()">✅ Guardar</button>
+    ${doneHtml}
+    ${formHtml}
+    ${pending.length?`<button class="btn btn-primary no-print" onclick="submitEnsayo()">✅ Guardar</button>`:''}
   </div>`;
 }
 
@@ -794,16 +800,15 @@ async function submitEnsayo(){
   const need = ensayoPPRequired(cfg, data);
   const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
 
-  const toApply = [];
-  for(const {pp,n} of pending){
-    const chk = document.getElementById(`f-pp${n+1}-ok`);
-    if(!chk?.checked) continue;
-    const fecha = document.getElementById(`f-pp${n+1}-fecha`).value;
-    if(!fecha){ toast(`Selecciona la fecha de PP${n+1}`,'warn'); return; }
-    const nombre = document.getElementById(`f-pp${n+1}-nombre`).value.trim();
-    toApply.push({pp, fecha, nombre});
-  }
-  if(!toApply.length){ toast('Marca al menos un PP como realizado','warn'); return; }
+  const checked = pending.filter(({n})=>document.getElementById(`f-pp${n+1}-ok`)?.checked);
+  if(!checked.length){ toast('Marca al menos un PP como realizado','warn'); return; }
+
+  const fecha = document.getElementById('f-fecha').value;
+  if(!fecha){ toast('Selecciona la fecha de realización','warn'); return; }
+
+  const toApply = checked.map(({pp,n})=>({
+    pp, fecha, nombre: document.getElementById(`f-pp${n+1}-nombre`).value.trim(),
+  }));
 
   const updates = [];
   toApply.forEach(({pp,fecha,nombre})=>{
