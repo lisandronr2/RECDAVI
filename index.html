@@ -567,6 +567,11 @@ function pushHistory(){ history_.push(JSON.stringify(state)); document.getElemen
 function goBack(){
   if(!history_.length) return;
   state = JSON.parse(history_.pop());
+  // El historial guarda una foto (JSON) de "rows" tal como estaba en ese
+  // momento, así que un registro guardado después no se reflejaría al
+  // volver atrás. Se reengancha al array vivo de sheetCache (el mismo que
+  // van mutando submitCtItem/submitEnsayo) para que siempre se vea al día.
+  if(state.sheet && sheetCache[state.sheet]) state.rows = sheetCache[state.sheet].rows;
   document.getElementById('hdr-back').disabled = history_.length===0;
   renderStep();
 }
