@@ -709,17 +709,17 @@ function renderCtList(){
     }
     const isSel = state.selected.includes(i);
     const cls = 'list-item no-print' + (isSel?' sel':'') + (done?' disabled':'');
-    const onclick = done ? '' : (isEnsayo ? `openEnsayoForm(${i})` : `toggleCtSelect(${i})`);
+    const onclick = done ? '' : `toggleCtSelect(${i})`;
     return `<div class="${cls}" onclick="${onclick}">
-      ${isEnsayo ? '' : `<div class="li-check">${isSel?'✓':''}</div>`}
+      <div class="li-check">${isSel?'✓':''}</div>
       <div class="li-main"><div class="li-title">${esc(ct)}</div><div class="li-sub">${cfg.cAnillo!=null && r.data[cfg.cAnillo] ? 'Anillo '+esc(r.data[cfg.cAnillo]) : ''}</div></div>
       ${pill}
     </div>`;
   }).join('');
-  app.className = 'app' + (!isEnsayo && n>0?' has-selbar':'');
-  const hint = isEnsayo ? 'toca un CT para registrar sus ensayos (PP)' : 'toca uno o varios pendientes para seleccionarlos';
+  app.className = 'app' + (n>0?' has-selbar':'');
+  const hint = isEnsayo ? 'toca uno o varios CTs para registrar sus ensayos (PP)' : 'toca uno o varios pendientes para seleccionarlos';
   app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s) · ${hint}</div>${items}</div>
-    ${(!isEnsayo && n>0)?`<div class="selbar no-print">
+    ${n>0?`<div class="selbar no-print">
       <div class="selbar-count">${n} seleccionado${n>1?'s':''}</div>
       <button class="btn btn-secondary" onclick="clearCtSelection()">Limpiar</button>
       <button class="btn btn-primary" onclick="continueMulti()">Continuar</button>
@@ -746,6 +746,7 @@ function continueMulti(){
   const {cfg, rows} = state;
   const idxs = [...(state.selected||[])];
   if(!idxs.length) return;
+  if(cfg.type==='ensayo'){ nav({step:'ensayo-form', selectedIdxs:idxs}); return; }
   const vals = {};
   if(idxs.length===1){
     const row = rows[idxs[0]];
@@ -754,69 +755,73 @@ function continueMulti(){
   nav({step:'form', selectedIdxs:idxs, formVals:vals});
 }
 
-function openEnsayoForm(i){
-  nav({step:'ensayo-form', rowIdx:i});
-}
-
 function renderEnsayoForm(){
-  const {cfg, rows, rowIdx} = state;
-  const row = rows[rowIdx];
-  const data = row.data;
-  const ct = data[cfg.cCt] || `Fila ${row.sheetRow}`;
-  const need = ensayoPPRequired(cfg, data);
+  const {cfg, rows, selectedIdxs} = state;
+  const idxs = selectedIdxs || [];
   const app = document.getElementById('app');
   app.className = 'app';
 
-  const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
+  let anyPending = false;
+  const blocks = idxs.map((rowIdx, ci)=>{
+    const row = rows[rowIdx];
+    const data = row.data;
+    const ct = data[cfg.cCt] || `Fila ${row.sheetRow}`;
+    const need = ensayoPPRequired(cfg, data);
+    const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
+    const doneList = cfg.pp.slice(0, need).filter(pp=>ensayoPPDone(cfg, data, pp));
+    const doneHtml = doneList.map(pp=>`<div class="li-sub" style="opacity:.6">PP${cfg.pp.indexOf(pp)+1} — ${esc(cfg.doneValue)} (${esc(data[pp.cFecha]||'')})</div>`).join('');
 
-  const doneHtml = cfg.pp.slice(0, need).filter(pp=>ensayoPPDone(cfg, data, pp)).map((pp,n)=>`
-    <div class="card" style="opacity:.6">
-      <div class="li-title">PP${cfg.pp.indexOf(pp)+1} — ${esc(cfg.doneValue)}</div>
-      <div class="li-sub">Fecha: ${esc(data[pp.cFecha]||'')}</div>
-    </div>`).join('');
-
-  const checksHtml = pending.map(({pp,n})=>`
-    <label style="display:flex;align-items:center;gap:8px">
-      <input type="checkbox" id="f-pp${n+1}-ok" ${pending.length===1?'checked':''}> PP${n+1}
-      <input type="text" id="f-pp${n+1}-nombre" value="${esc(data[pp.cPP]||'')}" placeholder="Nombre / identificador (opcional)" style="flex:1;margin-left:8px">
-    </label>`).join('');
-
-  const formHtml = pending.length ? `
-    <div class="card">
-      <div class="li-title" style="margin-bottom:10px">${pending.length>1?'Marca los PP realizados':`PP${pending[0].n+1}`}</div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        ${checksHtml}
-        <div class="field"><label>Fecha de realización${pending.length>1?' (misma para los marcados)':''}</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
-      </div>
-    </div>` : '';
+    if(!pending.length){
+      return `<div class="card" style="opacity:.6"><div class="li-title">${esc(ct)}</div>${doneHtml}</div>`;
+    }
+    anyPending = true;
+    const checksHtml = pending.map(({pp,n})=>`
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="f-c${ci}-pp${n+1}-ok" ${pending.length===1?'checked':''}> PP${n+1}
+        <input type="text" id="f-c${ci}-pp${n+1}-nombre" value="${esc(data[pp.cPP]||'')}" placeholder="Nombre / identificador (opcional)" style="flex:1;margin-left:8px">
+      </label>`).join('');
+    return `<div class="card">
+      <div class="li-title" style="margin-bottom:10px">${esc(ct)}</div>
+      ${doneHtml}
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:${doneHtml?'8px':'0'}">${checksHtml}</div>
+    </div>`;
+  }).join('');
 
   app.innerHTML = `<div class="wrap">
-    <div class="hint">${esc(ct)} · cada PP realizado equivale a ${cfg.ensayosPorPP} ensayos</div>
-    ${doneHtml}
-    ${formHtml}
-    ${pending.length?`<button class="btn btn-primary no-print" onclick="submitEnsayo()">✅ Guardar</button>`:''}
+    <div class="hint">${idxs.length} CT(s) · cada PP realizado equivale a ${cfg.ensayosPorPP} ensayos</div>
+    ${blocks}
+    ${anyPending?`
+    <div class="card">
+      <div class="field"><label>Fecha de realización${idxs.length>1?' (misma para todos los marcados)':''}</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
+    </div>
+    <button class="btn btn-primary no-print" onclick="submitEnsayo()">✅ Guardar</button>` : ''}
   </div>`;
 }
 
 async function submitEnsayo(){
-  const {cfg, rows, rowIdx, sheet} = state;
-  const row = rows[rowIdx];
-  const data = row.data;
-  const need = ensayoPPRequired(cfg, data);
-  const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
+  const {cfg, rows, selectedIdxs, sheet} = state;
+  const idxs = selectedIdxs || [];
 
-  const checked = pending.filter(({n})=>document.getElementById(`f-pp${n+1}-ok`)?.checked);
-  if(!checked.length){ toast('Marca al menos un PP como realizado','warn'); return; }
+  const toApply = [];
+  idxs.forEach((rowIdx, ci)=>{
+    const row = rows[rowIdx];
+    const data = row.data;
+    const need = ensayoPPRequired(cfg, data);
+    cfg.pp.slice(0, need).forEach((pp,n)=>{
+      if(ensayoPPDone(cfg, data, pp)) return;
+      const chk = document.getElementById(`f-c${ci}-pp${n+1}-ok`);
+      if(!chk?.checked) return;
+      const nombre = document.getElementById(`f-c${ci}-pp${n+1}-nombre`).value.trim();
+      toApply.push({row, pp, nombre});
+    });
+  });
+  if(!toApply.length){ toast('Marca al menos un PP como realizado','warn'); return; }
 
   const fecha = document.getElementById('f-fecha').value;
   if(!fecha){ toast('Selecciona la fecha de realización','warn'); return; }
 
-  const toApply = checked.map(({pp,n})=>({
-    pp, fecha, nombre: document.getElementById(`f-pp${n+1}-nombre`).value.trim(),
-  }));
-
   const updates = [];
-  toApply.forEach(({pp,fecha,nombre})=>{
+  toApply.forEach(({row,pp,nombre})=>{
     if(nombre) updates.push({range:`'${sheet}'!${col(pp.cPP)}${row.sheetRow}`, values:[[nombre]]});
     updates.push({range:`'${sheet}'!${col(pp.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]});
     updates.push({range:`'${sheet}'!${col(pp.cEstado)}${row.sheetRow}`, values:[[cfg.doneValue]]});
@@ -831,6 +836,7 @@ async function submitEnsayo(){
       if(r) r.data[ci] = u.values[0][0];
     });
     cacheSheetRows(sheet, rows);
+    state.selected = [];
   });
 }
 
