@@ -1049,6 +1049,22 @@ async function sharePdf(doc, filename, title){
   doc.save(filename);
 }
 
+// La fuente estándar de jsPDF (Helvetica/WinAnsi) no soporta ciertos caracteres
+// Unicode (→, —, comillas tipográficas, …) — algunos los descarta en silencio,
+// pero "→" corrompe el content-stream del PDF y provoca páginas en blanco en
+// visores reales. Se sanea todo texto/tabla antes de pasarlo a jsPDF.
+function pdfSafe(v){
+  return String(v ?? '')
+    .replace(/→/g, '-')
+    .replace(/←/g, '-')
+    .replace(/[–—]/g, '-')
+    .replace(/€/g, 'EUR')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/•/g, '-');
+}
+
 async function printSmart(){
   if(!lastResumen){ toast('⚠️ Nada que exportar','warn'); return; }
   const { jsPDF } = window.jspdf || {};
@@ -1060,9 +1076,9 @@ async function printSmart(){
   let y = 40;
 
   doc.setFontSize(16);
-  doc.text('Resumen de Producción — RECDAVI', marginL, y); y += 18;
+  doc.text(pdfSafe('Resumen de Producción - RECDAVI'), marginL, y); y += 18;
   doc.setFontSize(10);
-  doc.text(label, marginL, y); y += 20;
+  doc.text(pdfSafe(label), marginL, y); y += 20;
 
   if(modo === 'valorizacion'){
     const priced = results.map(({sheet,cfg,rows})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows)})).filter(r=>r.rows.length);
@@ -1070,12 +1086,12 @@ async function printSmart(){
     priced.forEach(({sheet, rows, totalEuros})=>{
       if(y > 700){ doc.addPage(); y = 40; }
       doc.setFontSize(12);
-      doc.text(sheet, marginL, y); y += 4;
+      doc.text(pdfSafe(sheet), marginL, y); y += 4;
       doc.autoTable({
         startY: y,
         head: [['Concepto','Detalle','Importe']],
-        body: rows.map(r=>[r.label, r.detail||'', fmtEuro(r.total)]),
-        foot: [['Subtotal','', fmtEuro(totalEuros)]],
+        body: rows.map(r=>[pdfSafe(r.label), pdfSafe(r.detail), pdfSafe(fmtEuro(r.total))]),
+        foot: [['Subtotal','', pdfSafe(fmtEuro(totalEuros))]],
         styles: {fontSize:9, cellPadding:3},
         headStyles: {fillColor:[180,83,9]},
         footStyles: {fillColor:[255,247,237], textColor:[180,83,9], fontStyle:'bold'},
@@ -1087,17 +1103,17 @@ async function printSmart(){
     if(y > 720){ doc.addPage(); y = 40; }
     doc.setFontSize(13);
     doc.setTextColor(180,83,9);
-    doc.text('TOTAL GENERAL: ' + fmtEuro(grand), marginL, y);
+    doc.text(pdfSafe('TOTAL GENERAL: ' + fmtEuro(grand)), marginL, y);
     doc.setTextColor(0,0,0);
   } else {
     results.forEach(({sheet, cfg, rows})=>{
       if(y > 700){ doc.addPage(); y = 40; }
       doc.setFontSize(12);
-      doc.text(`${sheet} (${rows.length} registros)`, marginL, y); y += 4;
+      doc.text(pdfSafe(`${sheet} (${rows.length} registros)`), marginL, y); y += 4;
       doc.autoTable({
         startY: y,
         head: [['Fecha','CT','Estado']],
-        body: rows.map(r=>[r[cfg.cFecha]||'', r[cfg.cCt]||'', r[cfg.cEstado]||'']),
+        body: rows.map(r=>[pdfSafe(r[cfg.cFecha]), pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cEstado])]),
         styles: {fontSize:8, cellPadding:3},
         headStyles: {fillColor:[180,83,9]},
         margin: {left:marginL,right:marginL},
