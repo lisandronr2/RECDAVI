@@ -150,6 +150,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 
 <div class="hdr">
   <button class="hdr-back" id="hdr-back" onclick="goBack()" disabled>←</button>
+  <button class="hdr-back" id="hdr-forward" onclick="goForward()" disabled>→</button>
   <div class="hdr-title">
     <div class="t1" id="hdr-t1">RECDAVI</div>
     <div class="t2" id="hdr-t2">Cargando…</div>
@@ -563,25 +564,47 @@ window.addEventListener('offline', ()=>{ toast('📴 Sin conexión — se guarda
 // ═══════════════════════════════════════════════
 // NAVEGACIÓN / ESTADO
 // ═══════════════════════════════════════════════
-function pushHistory(){ history_.push(JSON.stringify(state)); document.getElementById('hdr-back').disabled = history_.length===0; }
+let future_ = []; // pasos adelante disponibles tras volver atrás con goBack()
+
+function updateNavButtons(){
+  document.getElementById('hdr-back').disabled = history_.length===0;
+  document.getElementById('hdr-forward').disabled = future_.length===0;
+}
+function pushHistory(){ history_.push(JSON.stringify(state)); updateNavButtons(); }
+
+// El historial guarda una foto (JSON) de "rows" tal como estaba en ese
+// momento, así que un registro guardado después no se reflejaría al
+// volver atrás/adelante. Se reengancha al array vivo de sheetCache (el
+// mismo que van mutando submitCtItem/submitEnsayo) para que siempre se
+// vea al día.
+function relinkRows(){
+  if(state.sheet && sheetCache[state.sheet]) state.rows = sheetCache[state.sheet].rows;
+}
+
 function goBack(){
   if(!history_.length) return;
+  future_.push(JSON.stringify(state));
   state = JSON.parse(history_.pop());
-  // El historial guarda una foto (JSON) de "rows" tal como estaba en ese
-  // momento, así que un registro guardado después no se reflejaría al
-  // volver atrás. Se reengancha al array vivo de sheetCache (el mismo que
-  // van mutando submitCtItem/submitEnsayo) para que siempre se vea al día.
-  if(state.sheet && sheetCache[state.sheet]) state.rows = sheetCache[state.sheet].rows;
-  document.getElementById('hdr-back').disabled = history_.length===0;
+  relinkRows();
+  updateNavButtons();
+  renderStep();
+}
+function goForward(){
+  if(!future_.length) return;
+  history_.push(JSON.stringify(state));
+  state = JSON.parse(future_.pop());
+  relinkRows();
+  updateNavButtons();
   renderStep();
 }
 function goHome(){
   history_ = [];
-  document.getElementById('hdr-back').disabled = true;
+  future_ = [];
+  updateNavButtons();
   state = {step:'home'};
   renderStep();
 }
-function nav(newState){ pushHistory(); state = {...state, ...newState}; renderStep(); }
+function nav(newState){ pushHistory(); future_ = []; updateNavButtons(); state = {...state, ...newState}; renderStep(); }
 
 function renderStep(){
   const app = document.getElementById('app');
@@ -980,7 +1003,7 @@ function renderSuccess(){
 }
 async function continueSheet(){
   const name = state.sheet, cfg = state.cfg;
-  history_ = []; document.getElementById('hdr-back').disabled = true;
+  history_ = []; future_ = []; updateNavButtons();
   state = {sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}, selected:[]};
   if(cfg.type!=='append'){
     document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
