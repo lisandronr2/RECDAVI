@@ -224,6 +224,21 @@ const SHEETS = {
       'Preparación','Ensayo','Instalación Armario Rack','Preparación UTP',
     ],
   },
+  // Cada CT necesita 1 o 2 "puntos de prueba" (PP), según CANT PP. Cada PP
+  // completado equivale a 24 ensayos individuales, valorizados aparte del
+  // resto de conceptos (ver ensayosPorPP/precioEnsayo).
+  'ENSAYOS': {
+    type:'ensayo',
+    cAnillo:0, cCt:1, cCantPP:2, cFusiones:3,
+    pp:[
+      {cPP:4, cEstado:5, cFecha:6},
+      {cPP:7, cEstado:8, cFecha:9},
+    ],
+    doneValue:'REALIZADO',
+    icon:'🧪',
+    ensayosPorPP: 24,
+    precioEnsayo: 7.5,
+  },
 };
 
 // Mismos precios que el panel de control VILLENA PSFV
@@ -573,22 +588,47 @@ function renderStep(){
   if(state.step==='success'){ renderSuccess(); return; }
   if(state.step==='resumen'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenForm(); return; }
   if(state.step==='resumenResult'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenResult(); return; }
+  if(state.step==='ensayo-form'){ renderEnsayoForm(); return; }
   app.innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
 }
 
 function idSafe(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g,'_'); }
 
+// ENSAYOS: cuántos PP exige la fila (1 o 2, según CANT PP) y si un PP concreto
+// ya está marcado como realizado.
+function ensayoPPRequired(cfg, data){
+  return (parseInt(data[cfg.cCantPP],10) || 1) >= 2 ? 2 : 1;
+}
+function ensayoPPDone(cfg, data, pp){
+  return (data[pp.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
+}
+function isRowDone(cfg, data){
+  if(cfg.type==='ensayo'){
+    const need = ensayoPPRequired(cfg, data);
+    return cfg.pp.slice(0, need).every(pp=>ensayoPPDone(cfg, data, pp));
+  }
+  return (data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
+}
+function ensayoRowCells(cfg, data){
+  return cfg.pp.map((pp,n)=>{
+    const estado = data[pp.cEstado]||'', fecha = data[pp.cFecha]||'';
+    if(!estado && !fecha) return null;
+    return `PP${n+1}: ${estado||'-'} (${fecha||'-'})`;
+  }).filter(Boolean).join(' · ');
+}
+
 function renderHome(){
   const app = document.getElementById('app');
   const items = Object.entries(SHEETS).map(([name,cfg])=>{
-    const showPct = cfg.type==='ct-item';
+    const showPct = cfg.type==='ct-item' || cfg.type==='ensayo';
     const sid = idSafe(name);
+    const subLabel = cfg.type==='append' ? 'Registrar nuevo' : (cfg.type==='ensayo' ? 'Marcar ensayos (PP) completados' : 'Marcar CT completado');
     return `
     <div class="list-item no-print" onclick="openSheet('${esc(name)}')">
       <div style="font-size:22px">${cfg.icon||'📄'}</div>
       <div class="li-main">
         <div class="li-title">${esc(name)}</div>
-        <div class="li-sub">${cfg.type==='append'?'Registrar nuevo':'Marcar CT completado'}</div>
+        <div class="li-sub">${subLabel}</div>
         ${showPct?`<div class="li-progress"><div class="li-progress-bar" id="pb-${sid}"></div></div>`:''}
       </div>
       ${showPct?`<div class="li-pct" id="pct-${sid}">…</div>`:''}
@@ -612,12 +652,12 @@ function renderHome(){
 // repite descargas si ya se cargó antes.
 async function loadHomeProgress(){
   for(const [name,cfg] of Object.entries(SHEETS)){
-    if(cfg.type!=='ct-item') continue;
+    if(cfg.type!=='ct-item' && cfg.type!=='ensayo') continue;
     const sid = idSafe(name);
     try{
       const rows = await getSheetRows(name);
       const total = rows.length;
-      const done = rows.filter(r=>(r.data[cfg.cEstado]||'').trim().toUpperCase()===cfg.doneValue.toUpperCase()).length;
+      const done = rows.filter(r=>isRowDone(cfg, r.data)).length;
       const pct = total ? Math.round(done/total*100) : 0;
       const bar = document.getElementById('pb-'+sid);
       const lbl = document.getElementById('pct-'+sid);
@@ -649,22 +689,32 @@ function renderCtList(){
     app.innerHTML = `<div class="state"><div class="ico">📭</div><h3>Sin filas</h3><p>No hay CTs cargados en "${esc(state.sheet)}". Verifica el Sheet o sincroniza.</p></div>`;
     return;
   }
+  const isEnsayo = cfg.type==='ensayo';
   const n = state.selected.length;
   const items = rows.map((r,i)=>{
     const ct = r.data[cfg.cCt] || `Fila ${r.sheetRow}`;
-    const done = (r.data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
-    const pill = done ? `<span class="pill pill-green">🟢 ${esc(cfg.doneValue)}</span>` : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+    const done = isRowDone(cfg, r.data);
+    let pill;
+    if(isEnsayo){
+      const need = ensayoPPRequired(cfg, r.data);
+      const doneCount = cfg.pp.slice(0,need).filter(pp=>ensayoPPDone(cfg, r.data, pp)).length;
+      pill = done ? `<span class="pill pill-green">🟢 ${esc(cfg.doneValue)}</span>` : `<span class="pill pill-amber">🟡 ${doneCount}/${need} PP</span>`;
+    } else {
+      pill = done ? `<span class="pill pill-green">🟢 ${esc(cfg.doneValue)}</span>` : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+    }
     const isSel = state.selected.includes(i);
     const cls = 'list-item no-print' + (isSel?' sel':'') + (done?' disabled':'');
-    return `<div class="${cls}" onclick="${done?'':`toggleCtSelect(${i})`}">
-      <div class="li-check">${isSel?'✓':''}</div>
+    const onclick = done ? '' : (isEnsayo ? `openEnsayoForm(${i})` : `toggleCtSelect(${i})`);
+    return `<div class="${cls}" onclick="${onclick}">
+      ${isEnsayo ? '' : `<div class="li-check">${isSel?'✓':''}</div>`}
       <div class="li-main"><div class="li-title">${esc(ct)}</div><div class="li-sub">${cfg.cAnillo!=null && r.data[cfg.cAnillo] ? 'Anillo '+esc(r.data[cfg.cAnillo]) : ''}</div></div>
       ${pill}
     </div>`;
   }).join('');
-  app.className = 'app' + (n>0?' has-selbar':'');
-  app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s) · toca uno o varios pendientes para seleccionarlos</div>${items}</div>
-    ${n>0?`<div class="selbar no-print">
+  app.className = 'app' + (!isEnsayo && n>0?' has-selbar':'');
+  const hint = isEnsayo ? 'toca un CT para registrar sus ensayos (PP)' : 'toca uno o varios pendientes para seleccionarlos';
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(state.sheet)} · ${rows.length} CT(s) · ${hint}</div>${items}</div>
+    ${(!isEnsayo && n>0)?`<div class="selbar no-print">
       <div class="selbar-count">${n} seleccionado${n>1?'s':''}</div>
       <button class="btn btn-secondary" onclick="clearCtSelection()">Limpiar</button>
       <button class="btn btn-primary" onclick="continueMulti()">Continuar</button>
@@ -674,7 +724,7 @@ function renderCtList(){
 function toggleCtSelect(i){
   const row = state.rows[i];
   const {cfg} = state;
-  const done = (row.data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
+  const done = isRowDone(cfg, row.data);
   if(done) return;
   if(!Array.isArray(state.selected)) state.selected = [];
   const idx = state.selected.indexOf(i);
@@ -697,6 +747,81 @@ function continueMulti(){
     (cfg.fields||[]).forEach(f=>{ vals[f.key] = row.data[f.col] || ''; });
   }
   nav({step:'form', selectedIdxs:idxs, formVals:vals});
+}
+
+function openEnsayoForm(i){
+  nav({step:'ensayo-form', rowIdx:i});
+}
+
+function renderEnsayoForm(){
+  const {cfg, rows, rowIdx} = state;
+  const row = rows[rowIdx];
+  const data = row.data;
+  const ct = data[cfg.cCt] || `Fila ${row.sheetRow}`;
+  const need = ensayoPPRequired(cfg, data);
+  const app = document.getElementById('app');
+  app.className = 'app';
+
+  const ppHtml = cfg.pp.slice(0, need).map((pp,n)=>{
+    const label = `PP${n+1}`;
+    if(ensayoPPDone(cfg, data, pp)){
+      return `<div class="card" style="opacity:.6">
+        <div class="li-title">${label} — ${esc(cfg.doneValue)}</div>
+        <div class="li-sub">Fecha: ${esc(data[pp.cFecha]||'')}</div>
+      </div>`;
+    }
+    return `<div class="card">
+      <div class="li-title" style="margin-bottom:10px">${label}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="f-pp${n+1}-ok"> Realizado</label>
+        <div class="field"><label>Fecha de ejecución</label><input type="date" id="f-pp${n+1}-fecha" value="${todayISO()}"></div>
+        <div class="field"><label>Nombre / identificador (opcional)</label><input type="text" id="f-pp${n+1}-nombre" value="${esc(data[pp.cPP]||'')}" placeholder="${label}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  app.innerHTML = `<div class="wrap">
+    <div class="hint">${esc(ct)} · cada PP realizado equivale a ${cfg.ensayosPorPP} ensayos</div>
+    ${ppHtml}
+    <button class="btn btn-primary no-print" onclick="submitEnsayo()">✅ Guardar</button>
+  </div>`;
+}
+
+async function submitEnsayo(){
+  const {cfg, rows, rowIdx, sheet} = state;
+  const row = rows[rowIdx];
+  const data = row.data;
+  const need = ensayoPPRequired(cfg, data);
+  const pending = cfg.pp.slice(0, need).map((pp,n)=>({pp,n})).filter(({pp})=>!ensayoPPDone(cfg, data, pp));
+
+  const toApply = [];
+  for(const {pp,n} of pending){
+    const chk = document.getElementById(`f-pp${n+1}-ok`);
+    if(!chk?.checked) continue;
+    const fecha = document.getElementById(`f-pp${n+1}-fecha`).value;
+    if(!fecha){ toast(`Selecciona la fecha de PP${n+1}`,'warn'); return; }
+    const nombre = document.getElementById(`f-pp${n+1}-nombre`).value.trim();
+    toApply.push({pp, fecha, nombre});
+  }
+  if(!toApply.length){ toast('Marca al menos un PP como realizado','warn'); return; }
+
+  const updates = [];
+  toApply.forEach(({pp,fecha,nombre})=>{
+    if(nombre) updates.push({range:`'${sheet}'!${col(pp.cPP)}${row.sheetRow}`, values:[[nombre]]});
+    updates.push({range:`'${sheet}'!${col(pp.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]});
+    updates.push({range:`'${sheet}'!${col(pp.cEstado)}${row.sheetRow}`, values:[[cfg.doneValue]]});
+  });
+
+  await doSubmit({kind:'batchUpdate', updates}, ()=>{
+    updates.forEach(u=>{
+      const m = u.range.match(/!([A-Z]+)(\d+)$/);
+      const colLetters = m[1], sheetRow = +m[2];
+      let ci=0; for(const ch of colLetters) ci = ci*26 + (ch.charCodeAt(0)-64); ci--;
+      const r = rows.find(rr=>rr.sheetRow===sheetRow);
+      if(r) r.data[ci] = u.values[0][0];
+    });
+    cacheSheetRows(sheet, rows);
+  });
 }
 
 function renderForm(){
@@ -925,20 +1050,44 @@ async function runResumen(){
   for(const [name, cfg] of Object.entries(SHEETS)){
     const rows = await getSheetRows(name);
     if(!rows.length) continue;
-    const matched = rows.filter(r=>{
-      const d = resParseDate(r.data[cfg.cFecha]);
+    const inRange = isoDate => {
+      const d = resParseDate(isoDate);
       if(!d) return false;
       const ms = resDateMs(d);
       return ms>=fromMs && ms<=toMs;
-    }).map(r=>r.data);
-    if(matched.length) results.push({sheet:name, cfg, rows:matched});
+    };
+    const matched = (cfg.type==='ensayo'
+      ? rows.filter(r=>cfg.pp.some(pp=>inRange(r.data[pp.cFecha])))
+      : rows.filter(r=>inRange(r.data[cfg.cFecha]))
+    ).map(r=>r.data);
+    if(matched.length) results.push({sheet:name, cfg, rows:matched, fromMs, toMs});
   }
 
   lastResumen = {modo, label, results};
   nav({step:'resumenResult'});
 }
 
-function computeEurosForSheet(name, cfg, rows){
+function computeEurosForSheet(name, cfg, rows, range){
+  if(cfg.type==='ensayo'){
+    const {fromMs, toMs} = range || {};
+    let ppCount = 0;
+    rows.forEach(data=>{
+      const need = ensayoPPRequired(cfg, data);
+      cfg.pp.slice(0, need).forEach(pp=>{
+        if(!ensayoPPDone(cfg, data, pp)) return;
+        const d = resParseDate(data[pp.cFecha]);
+        if(!d) return;
+        const ms = resDateMs(d);
+        if(ms>=fromMs && ms<=toMs) ppCount++;
+      });
+    });
+    const out=[];
+    if(ppCount){
+      const ensayos = ppCount * cfg.ensayosPorPP;
+      out.push({label:'Ensayo', detail:`${ppCount} PP × ${cfg.ensayosPorPP} ensayos = ${ensayos} × ${cfg.precioEnsayo}€`, total: ensayos*cfg.precioEnsayo});
+    }
+    return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
+  }
   const ok = rows.filter(r=>(r[cfg.cEstado]||'').trim().toUpperCase()===cfg.doneValue.toUpperCase());
   const out=[];
   if(cfg.type==='ct-item'){
@@ -980,7 +1129,7 @@ function renderResumenResult(){
   }
 
   if(modo==='valorizacion'){
-    const priced = results.map(({sheet,cfg,rows})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows)})).filter(r=>r.rows.length);
+    const priced = results.map(({sheet,cfg,rows,fromMs,toMs})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows,{fromMs,toMs})})).filter(r=>r.rows.length);
     if(!priced.length){
       app.innerHTML = `<div class="state"><div class="ico">💶</div><h3>Sin producción valorizable</h3><p>Para <strong>${esc(label)}</strong>.</p>
         <button class="btn btn-secondary no-print" style="max-width:260px" onclick="nav({step:'resumen'})">Cambiar filtros</button></div>`;
@@ -1010,7 +1159,10 @@ function renderResumenResult(){
     <div class="card">
       <div class="res-block-title"><span>${esc(sheet)}</span><span>${rows.length} registro${rows.length>1?'s':''}</span></div>
       <table class="res-table"><tbody>
-      ${rows.map(r=>`<tr><td>${esc(r[cfg.cFecha]||'')}</td><td>${esc(r[cfg.cCt]||'')}</td><td>${esc((r[cfg.cEstado]||''))}</td></tr>`).join('')}
+      ${rows.map(r=> cfg.type==='ensayo'
+        ? `<tr><td>${esc(r[cfg.cCt]||'')}</td><td colspan="2">${esc(ensayoRowCells(cfg,r))}</td></tr>`
+        : `<tr><td>${esc(r[cfg.cFecha]||'')}</td><td>${esc(r[cfg.cCt]||'')}</td><td>${esc((r[cfg.cEstado]||''))}</td></tr>`
+      ).join('')}
       </tbody></table>
     </div>`).join('');
   app.innerHTML = `<div class="wrap">
@@ -1081,7 +1233,7 @@ async function printSmart(){
   doc.text(pdfSafe(label), marginL, y); y += 20;
 
   if(modo === 'valorizacion'){
-    const priced = results.map(({sheet,cfg,rows})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows)})).filter(r=>r.rows.length);
+    const priced = results.map(({sheet,cfg,rows,fromMs,toMs})=>({sheet, ...computeEurosForSheet(sheet,cfg,rows,{fromMs,toMs})})).filter(r=>r.rows.length);
     let grand = 0;
     priced.forEach(({sheet, rows, totalEuros})=>{
       if(y > 700){ doc.addPage(); y = 40; }
@@ -1112,8 +1264,10 @@ async function printSmart(){
       doc.text(pdfSafe(`${sheet} (${rows.length} registros)`), marginL, y); y += 4;
       doc.autoTable({
         startY: y,
-        head: [['Fecha','CT','Estado']],
-        body: rows.map(r=>[pdfSafe(r[cfg.cFecha]), pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cEstado])]),
+        head: cfg.type==='ensayo' ? [['CT','Ensayos']] : [['Fecha','CT','Estado']],
+        body: rows.map(r=> cfg.type==='ensayo'
+          ? [pdfSafe(r[cfg.cCt]), pdfSafe(ensayoRowCells(cfg,r))]
+          : [pdfSafe(r[cfg.cFecha]), pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cEstado])]),
         styles: {fontSize:8, cellPadding:3},
         headStyles: {fillColor:[180,83,9]},
         margin: {left:marginL,right:marginL},
