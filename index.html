@@ -1190,7 +1190,10 @@ function renderSuccess(){
 async function continueSheet(){
   const name = state.menuKey || state.sheet, cfg = state.cfg;
   const realSheet = cfg.sourceSheet || name;
-  history_ = []; future_ = []; updateNavButtons();
+  // Se deja un paso de "atrás" hacia Inicio en vez de vaciar el historial:
+  // si no, el botón de volver queda invisible en la primera pantalla y no
+  // hay otra forma de salir de la hoja salvo recargar la app.
+  history_ = [JSON.stringify({step:'home'})]; future_ = []; updateNavButtons();
   const step = GONVARRI_TYPES.includes(cfg.type) ? 'gonvarri-ct' : 'ctlist';
   state = {menuKey:name, sheet:realSheet, cfg, step, rowIdx:null, formVals:{}, selected:[]};
   document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
