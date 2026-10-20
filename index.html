@@ -225,7 +225,7 @@ const SHEETS = {
   'FUSIONADO GONVARRI': {
     type:'gonvarri-pp',
     cFecha:0, cCt:1, cElemento:2, cCantPP:3, cPPFusionados:4, cTotalFusiones:5, cEnsayosRealizados:6, cFechaEnsayos:7,
-    fusionesPorPP: 24,
+    fusionesPorPP: 8,
     precioFusion: 11.50,
     icon:'🔗',
   },
@@ -1347,6 +1347,17 @@ function computeEurosForSheet(name, cfg, rows, range){
   return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
 }
 
+// Total "crudo" (sin €) para el modo producción del resumen — reutiliza
+// computeEurosForSheet (ya calcula las cantidades correctas por tipo de
+// hoja) y solo se queda con la cantidad, descartando el precio.
+function produccionResumenTexto(name, cfg, rows, range){
+  const priced = computeEurosForSheet(name, cfg, rows, range);
+  return priced.rows.map(r=>{
+    const m = r.detail.match(/^([\d.,]+)\s*×/);
+    return m ? `${m[1]} ${r.label}` : r.detail;
+  }).join(' · ');
+}
+
 function fmtEuro(n){ return (Math.round(n*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 
 function renderResumenResult(){
@@ -1386,7 +1397,9 @@ function renderResumenResult(){
     return;
   }
 
-  const blocks = results.map(({sheet,cfg,rows})=>`
+  const blocks = results.map(({sheet,cfg,rows,fromMs,toMs})=>{
+    const totalTxt = produccionResumenTexto(sheet, cfg, rows, {fromMs,toMs});
+    return `
     <div class="card">
       <div class="res-block-title"><span>${esc(sheet)}</span><span>${rows.length} registro${rows.length>1?'s':''}</span></div>
       <table class="res-table"><tbody>
@@ -1398,8 +1411,9 @@ function renderResumenResult(){
         ? `<tr><td>${esc(r[cfg.cCt]||'')}</td><td>${esc(r[cfg.cElemento]||'')}</td><td>${esc(r[cfg.cEnsayosRealizados]||'0')} ensayos</td></tr>`
         : `<tr><td>${esc(r[cfg.cFecha]||'')}</td><td>${esc(r[cfg.cCt]||'')}</td><td>${esc((r[cfg.cEstado]||''))}</td></tr>`
       ).join('')}
-      </tbody></table>
-    </div>`).join('');
+      </tbody>${totalTxt?`<tfoot><tr><td colspan="3">Total: ${esc(totalTxt)}</td></tr></tfoot>`:''}</table>
+    </div>`;
+  }).join('');
   app.innerHTML = `<div class="wrap">
     <div class="hint">${esc(label)}</div>
     ${blocks}
@@ -1493,10 +1507,12 @@ async function printSmart(){
     doc.text(pdfSafe('TOTAL GENERAL: ' + fmtEuro(grand)), marginL, y);
     doc.setTextColor(0,0,0);
   } else {
-    results.forEach(({sheet, cfg, rows})=>{
+    results.forEach(({sheet, cfg, rows, fromMs, toMs})=>{
       if(y > 700){ doc.addPage(); y = 40; }
       doc.setFontSize(12);
       doc.text(pdfSafe(`${sheet} (${rows.length} registros)`), marginL, y); y += 4;
+      const totalTxt = produccionResumenTexto(sheet, cfg, rows, {fromMs,toMs});
+      const colCount = cfg.type==='ensayo' ? 2 : 3;
       doc.autoTable({
         startY: y,
         head: cfg.type==='ensayo' ? [['CT','Ensayos']]
@@ -1510,8 +1526,10 @@ async function printSmart(){
           : cfg.type==='gonvarri-ensayos'
           ? [pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cElemento]), pdfSafe(r[cfg.cEnsayosRealizados]||'0')]
           : [pdfSafe(r[cfg.cFecha]), pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cEstado])]),
+        foot: totalTxt ? [[{content: pdfSafe('Total: '+totalTxt), colSpan: colCount}]] : undefined,
         styles: {fontSize:8, cellPadding:3},
         headStyles: {fillColor:[180,83,9]},
+        footStyles: {fillColor:[255,247,237], textColor:[180,83,9], fontStyle:'bold'},
         margin: {left:marginL,right:marginL},
       });
       y = doc.lastAutoTable.finalY + 24;
