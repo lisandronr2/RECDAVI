@@ -103,6 +103,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .pill-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
 .pill-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd)}
 .pill-gray{background:var(--surface);color:var(--t3);border:1px solid var(--border)}
+.pill-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)}
 
 .field{display:flex;flex-direction:column;gap:5px}
 .field label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px}
@@ -191,10 +192,15 @@ let APP_VERSION = '1.0.0.0';
 
 // ═══════════════════════════════════════════════
 // CONFIG DE HOJAS
-// Dos tipos:
+// Tipos:
 //  - 'ct-item': lista de CT (filas ya existentes en la hoja) → se completan
 //    sus campos y se marca el estado. Ideal para hojas con un CT por fila.
-//  - 'append': formulario simple que siempre añade una fila nueva.
+//  - 'ensayo': como ct-item pero con hasta 2 puntos de prueba (PP) por fila.
+//  - 'gonvarri-pp' / 'gonvarri-ensayos': ambas leen/escriben la hoja
+//    FUSIONADO GONVARRI (filas ya existentes, varias por CT). La primera
+//    introduce PP. FUSIONADOS (y calcula TOTAL FUSIONES); la segunda marca
+//    ENSAYOS REALIZADOS sobre esas mismas filas — por eso "ENSAYOS GONVARRI"
+//    declara sourceSheet apuntando al nombre real de la hoja en el Sheet.
 // ═══════════════════════════════════════════════
 const SHEETS = {
   'MONTAJE ARMARIO COM': {
@@ -215,15 +221,20 @@ const SHEETS = {
       {key:'fusiones',     col:5, label:'Fusiones',     kind:'number', placeholder:'48'},
     ],
   },
+  // FECHA | CT | ELEMENTO | CANT. PP | PP. FUSIONADOS | TOTAL FUSIONES | ENSAYOS REALIZADOS | FECHA ENSAYOS
   'FUSIONADO GONVARRI': {
-    type:'append',
-    cFecha:0, cCt:1, cElemento:2, cEstado:3,
-    doneValue:'REALIZADO',
-    icon:'📦',
-    elementoOptions:[
-      'Fusionado','Montaje CT (armario campo)','Instalación Rack IT',
-      'Preparación','Ensayo','Instalación Armario Rack','Preparación UTP',
-    ],
+    type:'gonvarri-pp',
+    cFecha:0, cCt:1, cElemento:2, cCantPP:3, cPPFusionados:4, cTotalFusiones:5, cEnsayosRealizados:6, cFechaEnsayos:7,
+    fusionesPorPP: 24,
+    precioFusion: 11.50,
+    icon:'🔗',
+  },
+  'ENSAYOS GONVARRI': {
+    type:'gonvarri-ensayos',
+    sourceSheet:'FUSIONADO GONVARRI',
+    cFecha:7, cCt:1, cElemento:2, cCantPP:3, cTotalFusiones:5, cEnsayosRealizados:6, cFechaEnsayos:7,
+    precioEnsayo: 6,
+    icon:'🧪',
   },
   // Cada CT necesita 1 o 2 "puntos de prueba" (PP), según CANT PP. Cada PP
   // completado equivale a 24 ensayos individuales, valorizados aparte del
@@ -242,34 +253,13 @@ const SHEETS = {
   },
 };
 
-// Mismos precios que el panel de control VILLENA PSFV
+// Precios de MONTAJE ARMARIO COM / FUSIONADO CTS (mismos que VILLENA PSFV).
+// GONVARRI tiene sus propios precios en su propia config (precioFusion/precioEnsayo).
 const PRICE_LIST = {
   fusionado:   {label:'Fusionado',                    price:10},
   montaje:     {label:'Montaje CT (armario campo)',   price:50},
-  rackIt:      {label:'Instalación Rack IT',          price:50},
   preparacion: {label:'Preparación',                  price:30},
-  ensayo:      {label:'Ensayo',                       price:6},
-  armarioRack: {label:'Instalación Armario Rack',     price:180},
-  prepUtp:     {label:'Preparación UTP',               price:25},
 };
-const PRICE_KEYWORDS = [
-  {kw:'instalacion armario rack', item:'armarioRack'},
-  {kw:'instalacion rack',         item:'rackIt'},
-  {kw:'preparacion utp',          item:'prepUtp'},
-  {kw:'montaje',                  item:'montaje'},
-  {kw:'preparacion',              item:'preparacion'},
-  {kw:'fusion',                   item:'fusionado'},
-  {kw:'ensayo',                   item:'ensayo'},
-];
-function normalizeTxt(s){
-  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-}
-function matchPriceKeyword(text){
-  const n = normalizeTxt(text);
-  if(!n) return null;
-  for(const {kw,item} of PRICE_KEYWORDS){ if(n.includes(kw)) return item; }
-  return null;
-}
 
 // ═══════════════════════════════════════════════
 // ESTADO
@@ -609,7 +599,7 @@ function nav(newState){ pushHistory(); future_ = []; updateNavButtons(); state =
 function renderStep(){
   const app = document.getElementById('app');
   if(state.step!=='ctlist') app.className = 'app';
-  document.getElementById('hdr-t1').textContent = state.sheet || 'RECDAVI';
+  document.getElementById('hdr-t1').textContent = state.menuKey || state.sheet || 'RECDAVI';
   if(state.step==='home'){ document.getElementById('hdr-t1').textContent='RECDAVI'; renderHome(); return; }
   if(state.step==='ctlist'){ renderCtList(); return; }
   if(state.step==='form'){ renderForm(); return; }
@@ -617,6 +607,10 @@ function renderStep(){
   if(state.step==='resumen'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenForm(); return; }
   if(state.step==='resumenResult'){ document.getElementById('hdr-t1').textContent='Resumen'; renderResumenResult(); return; }
   if(state.step==='ensayo-form'){ renderEnsayoForm(); return; }
+  if(state.step==='gonvarri-ct'){ renderGonvarriCtList(); return; }
+  if(state.step==='gonvarri-elemento'){ renderGonvarriElementoList(); return; }
+  if(state.step==='gonvarri-pp-form'){ renderGonvarriPPForm(); return; }
+  if(state.step==='gonvarri-ensayos-form'){ renderGonvarriEnsayosForm(); return; }
   app.innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
 }
 
@@ -635,6 +629,8 @@ function isRowDone(cfg, data){
     const need = ensayoPPRequired(cfg, data);
     return cfg.pp.slice(0, need).every(pp=>ensayoPPDone(cfg, data, pp));
   }
+  if(cfg.type==='gonvarri-pp') return gonvarriPPEstado(cfg, data)==='completo';
+  if(cfg.type==='gonvarri-ensayos') return gonvarriEnsayoEstado(cfg, data)==='hecho';
   return (data[cfg.cEstado]||'').trim().toUpperCase() === cfg.doneValue.toUpperCase();
 }
 function ensayoRowCells(cfg, data){
@@ -645,12 +641,36 @@ function ensayoRowCells(cfg, data){
   }).filter(Boolean).join(' · ');
 }
 
+// FUSIONADO GONVARRI — fase 1 (PP. FUSIONADOS vs CANT. PP)
+function gonvarriPPEstado(cfg, data){
+  const raw = data[cfg.cPPFusionados];
+  if(raw===undefined || raw===null || String(raw).trim()==='') return 'pendiente';
+  const cantPP = parseFloat(data[cfg.cCantPP]) || 0;
+  const ppFus = parseFloat(raw) || 0;
+  return ppFus >= cantPP ? 'completo' : 'incompleto';
+}
+// ENSAYOS GONVARRI — fase 2 (¿ya se registró SI/NO?)
+function gonvarriEnsayoEstado(cfg, data){
+  const raw = data[cfg.cEnsayosRealizados];
+  return (raw!==undefined && raw!==null && String(raw).trim()!=='') ? 'hecho' : 'pendiente';
+}
+// Una fila es elegible para ensayo solo si ya tiene fusiones hechas.
+function gonvarriEnsayoElegible(cfg, data){
+  return (parseFloat(data[cfg.cTotalFusiones])||0) > 0;
+}
+
+const GONVARRI_TYPES = ['gonvarri-pp','gonvarri-ensayos'];
+const PROGRESS_TYPES = ['ct-item','ensayo', ...GONVARRI_TYPES];
+
 function renderHome(){
   const app = document.getElementById('app');
   const items = Object.entries(SHEETS).map(([name,cfg])=>{
-    const showPct = cfg.type==='ct-item' || cfg.type==='ensayo';
+    const showPct = PROGRESS_TYPES.includes(cfg.type);
     const sid = idSafe(name);
-    const subLabel = cfg.type==='append' ? 'Registrar nuevo' : (cfg.type==='ensayo' ? 'Marcar ensayos (PP) completados' : 'Marcar CT completado');
+    const subLabel = cfg.type==='gonvarri-pp' ? 'Introducir PP. Fusionados'
+      : cfg.type==='gonvarri-ensayos' ? 'Marcar ensayos realizados'
+      : cfg.type==='ensayo' ? 'Marcar ensayos (PP) completados'
+      : 'Marcar CT completado';
     return `
     <div class="list-item no-print" onclick="openSheet('${esc(name)}')">
       <div style="font-size:22px">${cfg.icon||'📄'}</div>
@@ -680,12 +700,14 @@ function renderHome(){
 // repite descargas si ya se cargó antes.
 async function loadHomeProgress(){
   for(const [name,cfg] of Object.entries(SHEETS)){
-    if(cfg.type!=='ct-item' && cfg.type!=='ensayo') continue;
+    if(!PROGRESS_TYPES.includes(cfg.type)) continue;
     const sid = idSafe(name);
     try{
-      const rows = await getSheetRows(name);
-      const total = rows.length;
-      const done = rows.filter(r=>isRowDone(cfg, r.data)).length;
+      const realSheet = cfg.sourceSheet || name;
+      const rows = await getSheetRows(realSheet);
+      const base = cfg.type==='gonvarri-ensayos' ? rows.filter(r=>gonvarriEnsayoElegible(cfg, r.data)) : rows;
+      const total = base.length;
+      const done = base.filter(r=>isRowDone(cfg, r.data)).length;
       const pct = total ? Math.round(done/total*100) : 0;
       const bar = document.getElementById('pb-'+sid);
       const lbl = document.getElementById('pct-'+sid);
@@ -700,13 +722,13 @@ async function loadHomeProgress(){
 
 async function openSheet(name){
   const cfg = SHEETS[name];
-  nav({sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}, selected:[]});
-  if(cfg.type!=='append'){
-    document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Cargando…</h3></div>`;
-    const rows = await getSheetRows(name);
-    state.rows = rows;
-    renderStep();
-  }
+  const realSheet = cfg.sourceSheet || name;
+  const step = GONVARRI_TYPES.includes(cfg.type) ? 'gonvarri-ct' : 'ctlist';
+  nav({menuKey:name, sheet:realSheet, cfg, step, rowIdx:null, formVals:{}, selected:[]});
+  document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div><h3>Cargando…</h3></div>`;
+  const rows = await getSheetRows(realSheet);
+  state.rows = rows;
+  renderStep();
 }
 
 function renderCtList(){
@@ -851,15 +873,228 @@ async function submitEnsayo(){
   });
 
   await doSubmit({kind:'batchUpdate', updates}, ()=>{
-    updates.forEach(u=>{
-      const m = u.range.match(/!([A-Z]+)(\d+)$/);
-      const colLetters = m[1], sheetRow = +m[2];
-      let ci=0; for(const ch of colLetters) ci = ci*26 + (ch.charCodeAt(0)-64); ci--;
-      const r = rows.find(rr=>rr.sheetRow===sheetRow);
-      if(r) r.data[ci] = u.values[0][0];
-    });
-    cacheSheetRows(sheet, rows);
+    applyLocalCellUpdates(updates, rows, sheet);
     state.selected = [];
+  });
+}
+
+// ═══════════════════════════════════════════════
+// FUSIONADO GONVARRI / ENSAYOS GONVARRI
+// Flujo: lista de CT → lista de ELEMENTOs de ese CT → formulario (uno a la
+// vez, según el tipo de la hoja abierta).
+// ═══════════════════════════════════════════════
+function renderGonvarriCtList(){
+  const {cfg, rows=[], menuKey, sheet} = state;
+  const app = document.getElementById('app');
+  app.className = 'app';
+  if(!rows.length){
+    app.innerHTML = `<div class="state"><div class="ico">📭</div><h3>Sin filas</h3><p>No hay datos cargados en "${esc(sheet)}". Verifica el Sheet o sincroniza.</p></div>`;
+    return;
+  }
+  const isEnsayos = cfg.type==='gonvarri-ensayos';
+  const groups = new Map();
+  rows.forEach((r,i)=>{
+    if(!r.data[cfg.cCt] && !r.data[cfg.cElemento]) return; // fila vacía al final de la hoja
+    const ct = r.data[cfg.cCt] || '(sin CT)';
+    if(!groups.has(ct)) groups.set(ct, []);
+    groups.get(ct).push(i);
+  });
+  const items = [...groups.entries()].map(([ct, idxs])=>{
+    let total, done;
+    if(isEnsayos){
+      const elegibles = idxs.filter(i=>gonvarriEnsayoElegible(cfg, rows[i].data));
+      total = elegibles.length;
+      done = elegibles.filter(i=>gonvarriEnsayoEstado(cfg, rows[i].data)==='hecho').length;
+    } else {
+      total = idxs.length;
+      done = idxs.filter(i=>gonvarriPPEstado(cfg, rows[i].data)==='completo').length;
+    }
+    const pct = total ? Math.round(done/total*100) : 0;
+    return `<div class="list-item no-print" onclick="openGonvarriCt('${esc(ct)}')">
+      <div class="li-main">
+        <div class="li-title">CT ${esc(ct)}</div>
+        <div class="li-sub">${idxs.length} elemento${idxs.length>1?'s':''}</div>
+      </div>
+      <span class="pill ${total && pct===100?'pill-green':'pill-amber'}">${done}/${total}</span>
+      <div class="li-arrow">›</div>
+    </div>`;
+  }).join('');
+  const hint = isEnsayos ? 'selecciona un CT para registrar sus ensayos' : 'selecciona un CT para introducir PP. Fusionados';
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(menuKey||sheet)} · ${groups.size} CT(s) · ${hint}</div>${items}</div>`;
+}
+
+function openGonvarriCt(ct){
+  nav({step:'gonvarri-elemento', ctValue: ct});
+}
+
+function renderGonvarriElementoList(){
+  const {cfg, rows=[], ctValue, menuKey, sheet} = state;
+  const app = document.getElementById('app');
+  app.className = 'app';
+  const isEnsayos = cfg.type==='gonvarri-ensayos';
+  const idxs = rows.map((r,i)=>i).filter(i=>(rows[i].data[cfg.cCt]||'(sin CT)')===ctValue);
+  const items = idxs.map(i=>{
+    const data = rows[i].data;
+    const elemento = data[cfg.cElemento] || `Fila ${rows[i].sheetRow}`;
+    let pill, disabled=false;
+    if(isEnsayos){
+      if(!gonvarriEnsayoElegible(cfg, data)){
+        pill = `<span class="pill pill-gray">Sin fusiones</span>`;
+        disabled = true;
+      } else if(gonvarriEnsayoEstado(cfg, data)==='hecho'){
+        const n = parseFloat(data[cfg.cEnsayosRealizados])||0;
+        pill = n>0 ? `<span class="pill pill-green">🟢 ${n} ensayos</span>` : `<span class="pill pill-amber">🟡 No realizados</span>`;
+      } else {
+        pill = `<span class="pill pill-amber">🟡 Pendiente</span>`;
+      }
+    } else {
+      const est = gonvarriPPEstado(cfg, data);
+      pill = est==='completo' ? `<span class="pill pill-green">🟢 Completo</span>`
+           : est==='incompleto' ? `<span class="pill pill-red">🔴 Incompleto</span>`
+           : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+    }
+    const cls = 'list-item no-print' + (disabled?' disabled':'');
+    const onclick = disabled ? '' : `openGonvarriElemento(${i})`;
+    return `<div class="${cls}" onclick="${onclick}">
+      <div class="li-main">
+        <div class="li-title">${esc(elemento)}</div>
+        <div class="li-sub">CANT. PP: ${esc(data[cfg.cCantPP]||'0')}</div>
+      </div>
+      ${pill}
+      <div class="li-arrow">›</div>
+    </div>`;
+  }).join('');
+  const hint = isEnsayos ? 'selecciona un elemento para registrar el ensayo' : 'selecciona un elemento para introducir PP. Fusionados';
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(menuKey||sheet)} · CT ${esc(ctValue)} · ${hint}</div>${items}</div>`;
+}
+
+function openGonvarriElemento(i){
+  const {cfg} = state;
+  nav({step: cfg.type==='gonvarri-ensayos' ? 'gonvarri-ensayos-form' : 'gonvarri-pp-form', rowIdx:i});
+}
+
+function renderGonvarriPPForm(){
+  const {cfg, rows, rowIdx} = state;
+  const row = rows[rowIdx];
+  const data = row.data;
+  const ct = data[cfg.cCt]||'', elemento = data[cfg.cElemento]||`Fila ${row.sheetRow}`;
+  const cantPP = data[cfg.cCantPP]||'0';
+  const app = document.getElementById('app');
+  app.className = 'app';
+  const ppActualRaw = data[cfg.cPPFusionados];
+  const ppActual = (ppActualRaw!==undefined && ppActualRaw!==null && String(ppActualRaw).trim()!=='') ? ppActualRaw : '';
+
+  app.innerHTML = `<div class="wrap">
+    <div class="card">
+      <div class="li-title" style="margin-bottom:4px">${esc(elemento)}</div>
+      <div class="li-sub">CT ${esc(ct)} · CANT. PP: ${esc(cantPP)}</div>
+      ${ppActual!==''?`<div class="li-sub" style="margin-top:6px">Valor actual: ${esc(ppActual)} PP · ${esc(data[cfg.cTotalFusiones]||'0')} fusiones totales</div>`:''}
+    </div>
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field"><label>PP. Fusionados</label><input type="number" id="f-ppfus" inputmode="decimal" value="${esc(ppActual)}" placeholder="0"></div>
+        <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary no-print" onclick="submitGonvarriPP()">✅ Guardar</button>
+  </div>`;
+}
+
+function applyLocalCellUpdates(updates, rows, sheet){
+  updates.forEach(u=>{
+    const m = u.range.match(/!([A-Z]+)(\d+)$/);
+    const colLetters = m[1], sheetRow = +m[2];
+    let ci=0; for(const ch of colLetters) ci = ci*26 + (ch.charCodeAt(0)-64); ci--;
+    const r = rows.find(rr=>rr.sheetRow===sheetRow);
+    if(r) r.data[ci] = u.values[0][0];
+  });
+  cacheSheetRows(sheet, rows);
+}
+
+async function submitGonvarriPP(){
+  const {cfg, rows, rowIdx, sheet} = state;
+  const row = rows[rowIdx];
+  const ppFusRaw = document.getElementById('f-ppfus').value;
+  const fecha = document.getElementById('f-fecha').value;
+  if(ppFusRaw===''){ toast('Introduce la cantidad de PP. Fusionados','warn'); return; }
+  if(!fecha){ toast('Selecciona la fecha','warn'); return; }
+  const ppFus = parseFloat(ppFusRaw);
+  if(isNaN(ppFus) || ppFus<0){ toast('Cantidad no válida','warn'); return; }
+  const totalFusiones = ppFus * cfg.fusionesPorPP;
+
+  const updates = [
+    {range:`'${sheet}'!${col(cfg.cPPFusionados)}${row.sheetRow}`, values:[[ppFus]]},
+    {range:`'${sheet}'!${col(cfg.cTotalFusiones)}${row.sheetRow}`, values:[[totalFusiones]]},
+    {range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]},
+  ];
+
+  await doSubmit({kind:'batchUpdate', updates}, ()=>{
+    applyLocalCellUpdates(updates, rows, sheet);
+    state.selected = [];
+  });
+}
+
+function renderGonvarriEnsayosForm(){
+  const {cfg, rows, rowIdx} = state;
+  const row = rows[rowIdx];
+  const data = row.data;
+  const ct = data[cfg.cCt]||'', elemento = data[cfg.cElemento]||`Fila ${row.sheetRow}`;
+  const totalFus = parseFloat(data[cfg.cTotalFusiones])||0;
+  const estadoActual = gonvarriEnsayoEstado(cfg, data);
+  const app = document.getElementById('app');
+  app.className = 'app';
+
+  app.innerHTML = `<div class="wrap">
+    <div class="card">
+      <div class="li-title" style="margin-bottom:4px">${esc(elemento)}</div>
+      <div class="li-sub">CT ${esc(ct)} · TOTAL FUSIONES: ${totalFus}</div>
+      ${estadoActual==='hecho'?`<div class="li-sub" style="margin-top:6px">Ya registrado: ${esc(data[cfg.cEnsayosRealizados]||'0')} ensayos (${esc(data[cfg.cFechaEnsayos]||'')})</div>`:''}
+    </div>
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field"><label>¿Están realizados los ensayos?</label>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="btn btn-secondary" id="f-si" onclick="selectGonvarriEnsayo(true)">Sí</button>
+            <button type="button" class="btn btn-secondary" id="f-no" onclick="selectGonvarriEnsayo(false)">No</button>
+          </div>
+        </div>
+        <div class="field"><label>Fecha de ensayos</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary no-print" id="btn-guardar-ensayo" onclick="submitGonvarriEnsayos()" disabled>✅ Guardar</button>
+  </div>`;
+  window.__gonvarriEnsayoRespuesta = null;
+}
+
+function selectGonvarriEnsayo(si){
+  window.__gonvarriEnsayoRespuesta = si;
+  const btnSi = document.getElementById('f-si'), btnNo = document.getElementById('f-no');
+  btnSi.style.background = si ? 'var(--green)' : '';
+  btnSi.style.color = si ? '#fff' : '';
+  btnNo.style.background = si===false ? 'var(--red)' : '';
+  btnNo.style.color = si===false ? '#fff' : '';
+  document.getElementById('btn-guardar-ensayo').disabled = false;
+}
+
+async function submitGonvarriEnsayos(){
+  const {cfg, rows, rowIdx, sheet} = state;
+  const row = rows[rowIdx];
+  const data = row.data;
+  const totalFus = parseFloat(data[cfg.cTotalFusiones])||0;
+  const si = window.__gonvarriEnsayoRespuesta;
+  if(si===null || si===undefined){ toast('Indica si los ensayos están realizados','warn'); return; }
+  const fecha = document.getElementById('f-fecha').value;
+  if(!fecha){ toast('Selecciona la fecha','warn'); return; }
+
+  const cantidad = si ? totalFus : 0;
+  const updates = [
+    {range:`'${sheet}'!${col(cfg.cEnsayosRealizados)}${row.sheetRow}`, values:[[cantidad]]},
+    {range:`'${sheet}'!${col(cfg.cFechaEnsayos)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]},
+  ];
+
+  await doSubmit({kind:'batchUpdate', updates}, ()=>{
+    applyLocalCellUpdates(updates, rows, sheet);
+    window.__gonvarriEnsayoRespuesta = null;
   });
 }
 
@@ -868,43 +1103,24 @@ function renderForm(){
   const app = document.getElementById('app');
   app.className = 'app';
 
-  if(cfg.type==='ct-item'){
-    const idxs = state.selectedIdxs || [];
-    const rowsSel = idxs.map(i=>state.rows[i]);
-    const ctNames = rowsSel.map(r=>r.data[cfg.cCt] || `Fila ${r.sheetRow}`);
-    const title = ctNames.length===1 ? ctNames[0] : `${ctNames.length} CTs: ${ctNames.join(', ')}`;
-    const fieldsHtml = (cfg.fields||[]).map(f=>`
-      <div class="field">
-        <label>${esc(f.label)}</label>
-        <input type="${f.kind==='number'?'number':'text'}" id="f-${f.key}" value="${esc(state.formVals[f.key]||'')}" placeholder="${esc(f.placeholder||'')}" inputmode="${f.kind==='number'?'decimal':'text'}">
-      </div>`).join('');
-    app.innerHTML = `<div class="wrap">
-      <div class="card">
-        <div class="li-title" style="margin-bottom:10px">${esc(title)}</div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${esc(state.formVals.fecha || todayISO())}"></div>
-          ${fieldsHtml}
-        </div>
-      </div>
-      <button class="btn btn-primary no-print" onclick="submitCtItem()">✅ Guardar${ctNames.length>1?` (${ctNames.length} CTs)`:''}</button>
-    </div>`;
-    return;
-  }
-
-  // type === 'append'
-  const opts = (cfg.elementoOptions||[]).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  const idxs = state.selectedIdxs || [];
+  const rowsSel = idxs.map(i=>state.rows[i]);
+  const ctNames = rowsSel.map(r=>r.data[cfg.cCt] || `Fila ${r.sheetRow}`);
+  const title = ctNames.length===1 ? ctNames[0] : `${ctNames.length} CTs: ${ctNames.join(', ')}`;
+  const fieldsHtml = (cfg.fields||[]).map(f=>`
+    <div class="field">
+      <label>${esc(f.label)}</label>
+      <input type="${f.kind==='number'?'number':'text'}" id="f-${f.key}" value="${esc(state.formVals[f.key]||'')}" placeholder="${esc(f.placeholder||'')}" inputmode="${f.kind==='number'?'decimal':'text'}">
+    </div>`).join('');
   app.innerHTML = `<div class="wrap">
     <div class="card">
+      <div class="li-title" style="margin-bottom:10px">${esc(title)}</div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${state.formVals?.fecha || todayISO()}"></div>
-        <div class="field"><label>CT</label><input type="text" id="f-ct" placeholder="Ej. CT-01" value="${esc(state.formVals?.ct||'')}"></div>
-        <div class="field"><label>Elemento</label><select id="f-elemento">
-          <option value="">— Selecciona —</option>${opts}
-        </select></div>
-        <div class="chk-row"><input type="checkbox" id="f-realizado" ${state.formVals?.realizado===false?'':'checked'}><label for="f-realizado" style="text-transform:none;font-weight:600;font-size:13px">Marcar como ${esc(cfg.doneValue)}</label></div>
+        <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${esc(state.formVals.fecha || todayISO())}"></div>
+        ${fieldsHtml}
       </div>
     </div>
-    <button class="btn btn-primary no-print" onclick="submitAppend()">✅ Guardar</button>
+    <button class="btn btn-primary no-print" onclick="submitCtItem()">✅ Guardar${ctNames.length>1?` (${ctNames.length} CTs)`:''}</button>
   </div>`;
 }
 
@@ -932,39 +1148,8 @@ async function submitCtItem(){
   });
 
   await doSubmit({kind:'batchUpdate', updates}, ()=>{
-    updates.forEach(u=>{
-      const m = u.range.match(/!([A-Z]+)(\d+)$/);
-      const colLetters = m[1], sheetRow = +m[2];
-      let ci=0; for(const ch of colLetters) ci = ci*26 + (ch.charCodeAt(0)-64); ci--;
-      const row = rows.find(r=>r.sheetRow===sheetRow);
-      if(row) row.data[ci] = u.values[0][0];
-    });
-    cacheSheetRows(sheet, rows);
+    applyLocalCellUpdates(updates, rows, sheet);
     state.selected = [];
-  });
-}
-
-async function submitAppend(){
-  const {cfg, sheet} = state;
-  const fecha = document.getElementById('f-fecha').value;
-  const ct = document.getElementById('f-ct').value.trim();
-  const elemento = document.getElementById('f-elemento').value;
-  const realizado = document.getElementById('f-realizado').checked;
-  if(!fecha || !ct || !elemento){ toast('Completa fecha, CT y elemento','warn'); return; }
-
-  const row = [];
-  row[cfg.cFecha] = fechaSheetFmt(fecha);
-  row[cfg.cCt] = ct;
-  row[cfg.cElemento] = elemento;
-  row[cfg.cEstado] = realizado ? cfg.doneValue : 'NO REALIZADO';
-  const maxCol = Math.max(cfg.cFecha,cfg.cCt,cfg.cElemento,cfg.cEstado);
-  const values = []; for(let i=0;i<=maxCol;i++) values.push(row[i] ?? '');
-
-  await doSubmit({kind:'append', range:`'${sheet}'!A:Z`, values}, ()=>{
-    const cached = sheetCache[sheet]?.rows || [];
-    cached.push({data:values, sheetRow: cached.length+2});
-    sheetCache[sheet] = {rows:cached, ts:Date.now()};
-    cacheSheetRows(sheet, cached);
   });
 }
 
@@ -993,22 +1178,23 @@ async function doSubmit(op, applyLocal){
 
 function renderSuccess(){
   const app = document.getElementById('app');
+  const displayName = state.menuKey || state.sheet;
   app.innerHTML = `<div class="state">
     <div class="ico">✅</div>
     <h3>Guardado</h3>
-    <p>El registro se guardó correctamente en <strong>${esc(state.sheet)}</strong>.</p>
-    <button class="btn btn-primary no-print" style="max-width:260px" onclick="continueSheet()">Continuar en ${esc(state.sheet)}</button>
+    <p>El registro se guardó correctamente en <strong>${esc(displayName)}</strong>.</p>
+    <button class="btn btn-primary no-print" style="max-width:260px" onclick="continueSheet()">Continuar en ${esc(displayName)}</button>
     <button class="btn btn-secondary no-print" style="max-width:260px" onclick="goHome()">Elegir otra hoja</button>
   </div>`;
 }
 async function continueSheet(){
-  const name = state.sheet, cfg = state.cfg;
+  const name = state.menuKey || state.sheet, cfg = state.cfg;
+  const realSheet = cfg.sourceSheet || name;
   history_ = []; future_ = []; updateNavButtons();
-  state = {sheet:name, cfg, step: cfg.type==='append' ? 'form' : 'ctlist', rowIdx:null, formVals:{}, selected:[]};
-  if(cfg.type!=='append'){
-    document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
-    state.rows = await getSheetRows(name, true);
-  }
+  const step = GONVARRI_TYPES.includes(cfg.type) ? 'gonvarri-ct' : 'ctlist';
+  state = {menuKey:name, sheet:realSheet, cfg, step, rowIdx:null, formVals:{}, selected:[]};
+  document.getElementById('app').innerHTML = `<div class="state"><div class="spin-ring"></div></div>`;
+  state.rows = await getSheetRows(realSheet, true);
   renderStep();
 }
 
@@ -1087,7 +1273,7 @@ async function runResumen(){
 
   const results = [];
   for(const [name, cfg] of Object.entries(SHEETS)){
-    const rows = await getSheetRows(name);
+    const rows = await getSheetRows(cfg.sourceSheet || name);
     if(!rows.length) continue;
     const inRange = isoDate => {
       const d = resParseDate(isoDate);
@@ -1127,30 +1313,33 @@ function computeEurosForSheet(name, cfg, rows, range){
     }
     return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
   }
+  if(cfg.type==='gonvarri-pp'){
+    let totalFusiones = 0;
+    rows.forEach(r=>{ totalFusiones += parseFloat(r[cfg.cTotalFusiones])||0; });
+    const out=[];
+    if(totalFusiones) out.push({label:'Fusiones GONVARRI', detail:`${totalFusiones} × ${cfg.precioFusion}€`, total: totalFusiones*cfg.precioFusion});
+    return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
+  }
+  if(cfg.type==='gonvarri-ensayos'){
+    let totalEnsayos = 0;
+    rows.forEach(r=>{ totalEnsayos += parseFloat(r[cfg.cEnsayosRealizados])||0; });
+    const out=[];
+    if(totalEnsayos) out.push({label:'Ensayos GONVARRI', detail:`${totalEnsayos} × ${cfg.precioEnsayo}€`, total: totalEnsayos*cfg.precioEnsayo});
+    return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
+  }
   const ok = rows.filter(r=>(r[cfg.cEstado]||'').trim().toUpperCase()===cfg.doneValue.toUpperCase());
   const out=[];
-  if(cfg.type==='ct-item'){
-    // Concepto principal según el nombre de la hoja/campos
-    if(name==='MONTAJE ARMARIO COM'){
-      const registros = ok.length;
-      if(registros) out.push({label:PRICE_LIST.montaje.label, detail:`${registros} × ${PRICE_LIST.montaje.price}€`, total:registros*PRICE_LIST.montaje.price});
-    } else if(name==='FUSIONADO CTS'){
-      const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
-      const prepIdx = (cfg.fields||[]).find(f=>f.key==='preparacion')?.col;
-      const fus = fusIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[fusIdx])||0),0) : 0;
-      const prep = prepIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[prepIdx])||0),0) : 0;
-      if(fus) out.push({label:PRICE_LIST.fusionado.label, detail:`${fus} × ${PRICE_LIST.fusionado.price}€`, total:fus*PRICE_LIST.fusionado.price});
-      if(prep) out.push({label:PRICE_LIST.preparacion.label, detail:`${prep} × ${PRICE_LIST.preparacion.price}€`, total:prep*PRICE_LIST.preparacion.price});
-    }
-  } else if(cfg.type==='append'){
-    const counts={};
-    ok.forEach(r=>{
-      const item = matchPriceKeyword(r[cfg.cElemento]);
-      if(item) counts[item]=(counts[item]||0)+1;
-    });
-    Object.entries(counts).forEach(([item,n])=>{
-      out.push({label:PRICE_LIST[item].label, detail:`${n} × ${PRICE_LIST[item].price}€`, total:n*PRICE_LIST[item].price});
-    });
+  // Concepto principal según el nombre de la hoja/campos
+  if(name==='MONTAJE ARMARIO COM'){
+    const registros = ok.length;
+    if(registros) out.push({label:PRICE_LIST.montaje.label, detail:`${registros} × ${PRICE_LIST.montaje.price}€`, total:registros*PRICE_LIST.montaje.price});
+  } else if(name==='FUSIONADO CTS'){
+    const fusIdx = (cfg.fields||[]).find(f=>f.key==='fusiones')?.col;
+    const prepIdx = (cfg.fields||[]).find(f=>f.key==='preparacion')?.col;
+    const fus = fusIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[fusIdx])||0),0) : 0;
+    const prep = prepIdx!=null ? ok.reduce((s,r)=>s+(parseFloat(r[prepIdx])||0),0) : 0;
+    if(fus) out.push({label:PRICE_LIST.fusionado.label, detail:`${fus} × ${PRICE_LIST.fusionado.price}€`, total:fus*PRICE_LIST.fusionado.price});
+    if(prep) out.push({label:PRICE_LIST.preparacion.label, detail:`${prep} × ${PRICE_LIST.preparacion.price}€`, total:prep*PRICE_LIST.preparacion.price});
   }
   return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
 }
@@ -1200,6 +1389,10 @@ function renderResumenResult(){
       <table class="res-table"><tbody>
       ${rows.map(r=> cfg.type==='ensayo'
         ? `<tr><td>${esc(r[cfg.cCt]||'')}</td><td colspan="2">${esc(ensayoRowCells(cfg,r))}</td></tr>`
+        : cfg.type==='gonvarri-pp'
+        ? `<tr><td>${esc(r[cfg.cCt]||'')}</td><td>${esc(r[cfg.cElemento]||'')}</td><td>${esc(r[cfg.cTotalFusiones]||'0')} fusiones</td></tr>`
+        : cfg.type==='gonvarri-ensayos'
+        ? `<tr><td>${esc(r[cfg.cCt]||'')}</td><td>${esc(r[cfg.cElemento]||'')}</td><td>${esc(r[cfg.cEnsayosRealizados]||'0')} ensayos</td></tr>`
         : `<tr><td>${esc(r[cfg.cFecha]||'')}</td><td>${esc(r[cfg.cCt]||'')}</td><td>${esc((r[cfg.cEstado]||''))}</td></tr>`
       ).join('')}
       </tbody></table>
@@ -1303,9 +1496,16 @@ async function printSmart(){
       doc.text(pdfSafe(`${sheet} (${rows.length} registros)`), marginL, y); y += 4;
       doc.autoTable({
         startY: y,
-        head: cfg.type==='ensayo' ? [['CT','Ensayos']] : [['Fecha','CT','Estado']],
+        head: cfg.type==='ensayo' ? [['CT','Ensayos']]
+            : cfg.type==='gonvarri-pp' ? [['CT','Elemento','Total fusiones']]
+            : cfg.type==='gonvarri-ensayos' ? [['CT','Elemento','Ensayos realizados']]
+            : [['Fecha','CT','Estado']],
         body: rows.map(r=> cfg.type==='ensayo'
           ? [pdfSafe(r[cfg.cCt]), pdfSafe(ensayoRowCells(cfg,r))]
+          : cfg.type==='gonvarri-pp'
+          ? [pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cElemento]), pdfSafe(r[cfg.cTotalFusiones]||'0')]
+          : cfg.type==='gonvarri-ensayos'
+          ? [pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cElemento]), pdfSafe(r[cfg.cEnsayosRealizados]||'0')]
           : [pdfSafe(r[cfg.cFecha]), pdfSafe(r[cfg.cCt]), pdfSafe(r[cfg.cEstado])]),
         styles: {fontSize:8, cellPadding:3},
         headStyles: {fillColor:[180,83,9]},
