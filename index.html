@@ -221,10 +221,10 @@ const SHEETS = {
       {key:'fusiones',     col:5, label:'Fusiones',     kind:'number', placeholder:'48'},
     ],
   },
-  // FECHA | CT | ELEMENTO | CANT. PP | PP. FUSIONADOS | TOTAL FUSIONES | ENSAYOS REALIZADOS | FECHA ENSAYOS
+  // FECHA | CT | ELEMENTO | CANT. PP | PP. FUSIONADOS | TOTAL FUSIONES | ENSAYOS REALIZADOS | FECHA ENSAYOS | PREPARACION
   'FUSIONADO GONVARRI': {
     type:'gonvarri-pp',
-    cFecha:0, cCt:1, cElemento:2, cCantPP:3, cPPFusionados:4, cTotalFusiones:5, cEnsayosRealizados:6, cFechaEnsayos:7,
+    cFecha:0, cCt:1, cElemento:2, cCantPP:3, cPPFusionados:4, cTotalFusiones:5, cEnsayosRealizados:6, cFechaEnsayos:7, cPreparacion:8,
     fusionesPorPP: 8,
     precioFusion: 11.50,
     icon:'🔗',
@@ -924,7 +924,7 @@ function renderGonvarriCtList(){
 }
 
 function openGonvarriCt(ct){
-  nav({step:'gonvarri-elemento', ctValue: ct});
+  nav({step:'gonvarri-elemento', ctValue: ct, selected:[]});
 }
 
 function renderGonvarriElementoList(){
@@ -932,7 +932,9 @@ function renderGonvarriElementoList(){
   const app = document.getElementById('app');
   app.className = 'app';
   const isEnsayos = cfg.type==='gonvarri-ensayos';
+  if(!Array.isArray(state.selected)) state.selected = [];
   const idxs = rows.map((r,i)=>i).filter(i=>(rows[i].data[cfg.cCt]||'(sin CT)')===ctValue);
+  const n = state.selected.length;
   const items = idxs.map(i=>{
     const data = rows[i].data;
     const elemento = data[cfg.cElemento] || `Fila ${rows[i].sheetRow}`;
@@ -947,56 +949,122 @@ function renderGonvarriElementoList(){
       } else {
         pill = `<span class="pill pill-amber">🟡 Pendiente</span>`;
       }
-    } else {
-      const est = gonvarriPPEstado(cfg, data);
-      pill = est==='completo' ? `<span class="pill pill-green">🟢 Completo</span>`
-           : est==='incompleto' ? `<span class="pill pill-red">🔴 Incompleto</span>`
-           : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+      const cls = 'list-item no-print' + (disabled?' disabled':'');
+      const onclick = disabled ? '' : `openGonvarriElemento(${i})`;
+      return `<div class="${cls}" onclick="${onclick}">
+        <div class="li-main">
+          <div class="li-title">${esc(elemento)}</div>
+          <div class="li-sub">CANT. PP: ${esc(data[cfg.cCantPP]||'0')}</div>
+        </div>
+        ${pill}
+        <div class="li-arrow">›</div>
+      </div>`;
     }
-    const cls = 'list-item no-print' + (disabled?' disabled':'');
-    const onclick = disabled ? '' : `openGonvarriElemento(${i})`;
+    // gonvarri-pp: selección múltiple (marcar varios como PP.Fusionados = CANT.PP a la vez;
+    // para un valor distinto se selecciona solo ese y se entra a editarlo).
+    const est = gonvarriPPEstado(cfg, data);
+    disabled = est==='completo';
+    pill = est==='completo' ? `<span class="pill pill-green">🟢 Completo</span>`
+         : est==='incompleto' ? `<span class="pill pill-red">🔴 Incompleto</span>`
+         : `<span class="pill pill-amber">🟡 Pendiente</span>`;
+    const isSel = state.selected.includes(i);
+    const cls = 'list-item no-print' + (isSel?' sel':'') + (disabled?' disabled':'');
+    const onclick = disabled ? '' : `toggleGonvarriPPSelect(${i})`;
     return `<div class="${cls}" onclick="${onclick}">
+      <div class="li-check">${isSel?'✓':''}</div>
       <div class="li-main">
         <div class="li-title">${esc(elemento)}</div>
         <div class="li-sub">CANT. PP: ${esc(data[cfg.cCantPP]||'0')}</div>
       </div>
       ${pill}
-      <div class="li-arrow">›</div>
     </div>`;
   }).join('');
-  const hint = isEnsayos ? 'selecciona un elemento para registrar el ensayo' : 'selecciona un elemento para introducir PP. Fusionados';
-  app.innerHTML = `<div class="wrap"><div class="hint">${esc(menuKey||sheet)} · CT ${esc(ctValue)} · ${hint}</div>${items}</div>`;
+  app.className = 'app' + (!isEnsayos && n>0?' has-selbar':'');
+  const hint = isEnsayos ? 'selecciona un elemento para registrar el ensayo' : 'toca uno o varios pendientes para marcarlos realizados';
+  app.innerHTML = `<div class="wrap"><div class="hint">${esc(menuKey||sheet)} · CT ${esc(ctValue)} · ${hint}</div>${items}</div>
+    ${(!isEnsayos && n>0)?`<div class="selbar no-print">
+      <div class="selbar-count">${n} seleccionado${n>1?'s':''}</div>
+      <button class="btn btn-secondary" onclick="clearGonvarriPPSelection()">Limpiar</button>
+      <button class="btn btn-primary" onclick="continueGonvarriPP()">Continuar</button>
+    </div>`:''}`;
 }
 
+function toggleGonvarriPPSelect(i){
+  const {cfg, rows} = state;
+  if(gonvarriPPEstado(cfg, rows[i].data)==='completo') return;
+  if(!Array.isArray(state.selected)) state.selected = [];
+  const idx = state.selected.indexOf(i);
+  if(idx>=0) state.selected.splice(idx,1);
+  else state.selected.push(i);
+  renderGonvarriElementoList();
+}
+function clearGonvarriPPSelection(){
+  state.selected = [];
+  renderGonvarriElementoList();
+}
+function continueGonvarriPP(){
+  const idxs = [...(state.selected||[])];
+  if(!idxs.length) return;
+  nav({step:'gonvarri-pp-form', selectedIdxs:idxs});
+}
+
+// Solo lo usa el flujo de ENSAYOS GONVARRI (un elemento a la vez).
 function openGonvarriElemento(i){
-  const {cfg} = state;
-  nav({step: cfg.type==='gonvarri-ensayos' ? 'gonvarri-ensayos-form' : 'gonvarri-pp-form', rowIdx:i});
+  nav({step:'gonvarri-ensayos-form', rowIdx:i});
 }
 
 function renderGonvarriPPForm(){
-  const {cfg, rows, rowIdx} = state;
-  const row = rows[rowIdx];
-  const data = row.data;
-  const ct = data[cfg.cCt]||'', elemento = data[cfg.cElemento]||`Fila ${row.sheetRow}`;
-  const cantPP = data[cfg.cCantPP]||'0';
+  const {cfg, rows, selectedIdxs} = state;
+  const idxs = selectedIdxs || [];
   const app = document.getElementById('app');
   app.className = 'app';
-  const ppActualRaw = data[cfg.cPPFusionados];
-  const ppActual = (ppActualRaw!==undefined && ppActualRaw!==null && String(ppActualRaw).trim()!=='') ? ppActualRaw : '';
 
+  if(idxs.length === 1){
+    // Individual: el campo PP. Fusionados viene con el valor actual o, si
+    // aún no se ha introducido, con CANT. PP por defecto — y es editable
+    // para los casos en que se necesite un valor distinto.
+    const i = idxs[0];
+    const row = rows[i];
+    const data = row.data;
+    const ct = data[cfg.cCt]||'', elemento = data[cfg.cElemento]||`Fila ${row.sheetRow}`;
+    const cantPP = data[cfg.cCantPP]||'0';
+    const ppActualRaw = data[cfg.cPPFusionados];
+    const ppActual = (ppActualRaw!==undefined && ppActualRaw!==null && String(ppActualRaw).trim()!=='') ? ppActualRaw : cantPP;
+    app.innerHTML = `<div class="wrap">
+      <div class="card">
+        <div class="li-title" style="margin-bottom:4px">${esc(elemento)}</div>
+        <div class="li-sub">CT ${esc(ct)} · CANT. PP: ${esc(cantPP)}</div>
+        ${ppActualRaw!==undefined && ppActualRaw!==null && String(ppActualRaw).trim()!==''?`<div class="li-sub" style="margin-top:6px">Valor actual: ${esc(ppActualRaw)} PP · ${esc(data[cfg.cTotalFusiones]||'0')} fusiones totales</div>`:''}
+      </div>
+      <div class="card">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="field"><label>PP. Fusionados</label><input type="number" id="f-ppfus" inputmode="decimal" value="${esc(ppActual)}" placeholder="0"></div>
+          <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary no-print" onclick="submitGonvarriPP()">✅ Guardar</button>
+    </div>`;
+    return;
+  }
+
+  // Varios a la vez: PP. Fusionados = CANT. PP para cada uno (sin edición
+  // individual); para un valor distinto hay que seleccionar ese elemento solo.
+  const list = idxs.map(i=>{
+    const data = rows[i].data;
+    const elemento = data[cfg.cElemento]||`Fila ${rows[i].sheetRow}`;
+    const ct = data[cfg.cCt]||'';
+    const cantPP = data[cfg.cCantPP]||'0';
+    return `<div class="li-sub">CT ${esc(ct)} · ${esc(elemento)} — PP. Fusionados: ${esc(cantPP)}</div>`;
+  }).join('');
   app.innerHTML = `<div class="wrap">
     <div class="card">
-      <div class="li-title" style="margin-bottom:4px">${esc(elemento)}</div>
-      <div class="li-sub">CT ${esc(ct)} · CANT. PP: ${esc(cantPP)}</div>
-      ${ppActual!==''?`<div class="li-sub" style="margin-top:6px">Valor actual: ${esc(ppActual)} PP · ${esc(data[cfg.cTotalFusiones]||'0')} fusiones totales</div>`:''}
+      <div class="li-title" style="margin-bottom:6px">${idxs.length} elementos a marcar como realizados</div>
+      ${list}
     </div>
     <div class="card">
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <div class="field"><label>PP. Fusionados</label><input type="number" id="f-ppfus" inputmode="decimal" value="${esc(ppActual)}" placeholder="0"></div>
-        <div class="field"><label>Fecha</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
-      </div>
+      <div class="field"><label>Fecha (misma para todos)</label><input type="date" id="f-fecha" value="${todayISO()}"></div>
     </div>
-    <button class="btn btn-primary no-print" onclick="submitGonvarriPP()">✅ Guardar</button>
+    <button class="btn btn-primary no-print" onclick="submitGonvarriPP()">✅ Guardar (${idxs.length})</button>
   </div>`;
 }
 
@@ -1012,21 +1080,36 @@ function applyLocalCellUpdates(updates, rows, sheet){
 }
 
 async function submitGonvarriPP(){
-  const {cfg, rows, rowIdx, sheet} = state;
-  const row = rows[rowIdx];
-  const ppFusRaw = document.getElementById('f-ppfus').value;
-  const fecha = document.getElementById('f-fecha').value;
-  if(ppFusRaw===''){ toast('Introduce la cantidad de PP. Fusionados','warn'); return; }
-  if(!fecha){ toast('Selecciona la fecha','warn'); return; }
-  const ppFus = parseFloat(ppFusRaw);
-  if(isNaN(ppFus) || ppFus<0){ toast('Cantidad no válida','warn'); return; }
-  const totalFusiones = ppFus * cfg.fusionesPorPP;
+  const {cfg, rows, selectedIdxs, sheet} = state;
+  const idxs = selectedIdxs || [];
+  if(!idxs.length) return;
 
-  const updates = [
-    {range:`'${sheet}'!${col(cfg.cPPFusionados)}${row.sheetRow}`, values:[[ppFus]]},
-    {range:`'${sheet}'!${col(cfg.cTotalFusiones)}${row.sheetRow}`, values:[[totalFusiones]]},
-    {range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]},
-  ];
+  const fecha = document.getElementById('f-fecha').value;
+  if(!fecha){ toast('Selecciona la fecha','warn'); return; }
+
+  // Individual: PP. Fusionados viene del campo editable. Varios a la vez:
+  // siempre PP. Fusionados = CANT. PP de cada elemento (no hay edición).
+  let ppFusSingle = null;
+  if(idxs.length===1){
+    const raw = document.getElementById('f-ppfus').value;
+    if(raw===''){ toast('Introduce la cantidad de PP. Fusionados','warn'); return; }
+    ppFusSingle = parseFloat(raw);
+    if(isNaN(ppFusSingle) || ppFusSingle<0){ toast('Cantidad no válida','warn'); return; }
+  }
+
+  const updates = [];
+  idxs.forEach(i=>{
+    const row = rows[i];
+    const data = row.data;
+    const ppFus = ppFusSingle!==null ? ppFusSingle : (parseFloat(data[cfg.cCantPP])||0);
+    const totalFusiones = ppFus * cfg.fusionesPorPP;
+    updates.push({range:`'${sheet}'!${col(cfg.cPPFusionados)}${row.sheetRow}`, values:[[ppFus]]});
+    updates.push({range:`'${sheet}'!${col(cfg.cTotalFusiones)}${row.sheetRow}`, values:[[totalFusiones]]});
+    updates.push({range:`'${sheet}'!${col(cfg.cFecha)}${row.sheetRow}`, values:[[fechaSheetFmt(fecha)]]});
+    // Al introducir las fusiones, la preparación de ese elemento queda
+    // realizada también (cuenta como 1 preparación en los resúmenes).
+    updates.push({range:`'${sheet}'!${col(cfg.cPreparacion)}${row.sheetRow}`, values:[[1]]});
+  });
 
   await doSubmit({kind:'batchUpdate', updates}, ()=>{
     applyLocalCellUpdates(updates, rows, sheet);
@@ -1317,10 +1400,14 @@ function computeEurosForSheet(name, cfg, rows, range){
     return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
   }
   if(cfg.type==='gonvarri-pp'){
-    let totalFusiones = 0;
-    rows.forEach(r=>{ totalFusiones += parseFloat(r[cfg.cTotalFusiones])||0; });
+    let totalFusiones = 0, totalPrep = 0;
+    rows.forEach(r=>{
+      totalFusiones += parseFloat(r[cfg.cTotalFusiones])||0;
+      totalPrep += parseFloat(r[cfg.cPreparacion])||0;
+    });
     const out=[];
     if(totalFusiones) out.push({label:'Fusiones GONVARRI', detail:`${totalFusiones} × ${cfg.precioFusion}€`, total: totalFusiones*cfg.precioFusion});
+    if(totalPrep) out.push({label:PRICE_LIST.preparacion.label, detail:`${totalPrep} × ${PRICE_LIST.preparacion.price}€`, total: totalPrep*PRICE_LIST.preparacion.price});
     return {rows:out, totalEuros: out.reduce((s,r)=>s+r.total,0)};
   }
   if(cfg.type==='gonvarri-ensayos'){
